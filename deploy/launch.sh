@@ -13,7 +13,7 @@ if [[ -f .env ]]; then
     source .env
 fi
 if [[ -z "${APP_NAME}" ]]; then
-    APP_NAME=appserver
+    APP_NAME=api
 fi
 if [[ -z "${TAG_ENV}" ]]; then
     TAG_ENV=Dev
@@ -184,7 +184,7 @@ declare -a results=\($(aws ec2 run-instances \
 new_targets=''
 new_instances=''
 for instance in "${results[@]}"; do
-    new_targets="${new_targets} Id=${instance},Port=8ACTION_ACTION_ACTION_0"
+    new_targets="${new_targets} Id=${instance},Port=80"
     new_instances="${new_instances} ${instance}"
 done
 aws ec2 wait instance-running --instance-ids${new_instances}
