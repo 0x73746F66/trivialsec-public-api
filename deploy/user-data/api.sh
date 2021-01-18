@@ -4,3 +4,5 @@ runuser -l ec2-user -c 'time /home/ec2-user/.local/bin/uwsgi --listen $(cat /pro
 lsof -i :80 -i :8080
 /usr/sbin/nginx -t
 /usr/sbin/nginx || /usr/sbin/nginx -s reopen
+echo '* * * * * root /bin/sh /bin/pgrep nginx || /usr/sbin/nginx' > /etc/cron.d/nginx_up
+echo "* * * * * root /bin/sh /sbin/runuser -l ec2-user -c 'time /home/ec2-user/.local/bin/uwsgi --listen $(cat /proc/sys/net/core/somaxconn) --daemonize -- /srv/app/app.ini'" > /etc/cron.d/uwsgi_up

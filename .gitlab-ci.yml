@@ -3,7 +3,7 @@ variables:
   APP_NAME: api
   TAG_ENV: Prod
   TAG_PURPOSE: Deploy
-  TARGET_GROUP_ARN: ''
+  TARGET_GROUP_ARN: arn:aws:elasticloadbalancing:ap-southeast-2:814504268053:targetgroup/trivialsec-prod-api/cca87097c1b72b62
   AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
   AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
   AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
