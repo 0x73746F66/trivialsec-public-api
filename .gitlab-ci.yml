@@ -1,0 +1,85 @@
+variables:
+  COMMON_VERSION: 0.1.7
+  APP_NAME: api
+  TAG_ENV: Prod
+  TAG_PURPOSE: Deploy
+  TARGET_GROUP_ARN: ''
+  AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+  AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+  BASE_AMI: ami-09f765d333a8ebb4b
+  SUBNET_ID: subnet-8b05e8c3
+  DEFAULT_INSTANCE_TYPE: t3a.medium
+  IAM_INSTANCE_PROFILE: EC2-TrivialSec
+  COST_CENTER: saas
+  PRIV_KEY_NAME: trivialsec-prod
+  SECURITY_GROUP_IDS: sg-04a8dac724adcad3c sg-01bbdeecc61359d59 sg-0652a48752a2da5a8
+
+before_script:
+  - aws --version
+  - pylint --version
+  - pip --version
+
+stages:
+  - test
+  - build
+  - deploy
+  - teardown
+
+lint:
+  retry: 2
+  tags:
+    - python
+  stage: test
+  script:
+    - make common
+    - pip install -q -r docker/requirements.txt
+    - make lint
+  only:
+    refs:
+      - merge_request
+      - master
+
+build:
+  retry: 2
+  tags:
+    - python
+  stage: build
+  script:
+    - make package
+  only:
+    refs:
+      - merge_request
+
+build-upload:
+  retry: 2
+  tags:
+    - python
+  stage: build
+  script:
+    - make package-upload
+  only:
+    refs:
+      - master
+
+deploy:
+  retry: 2
+  tags:
+    - python
+  stage: deploy
+  script:
+    - export NUM_INSTANCES=$(aws elbv2 describe-target-health --target-group-arn ${TARGET_GROUP_ARN} --query 'TargetHealthDescriptions[]' | jq '. | length')
+    - echo NUM_INSTANCES ${NUM_INSTANCES}
+    - ./deploy/launch.sh
+  only:
+    refs:
+      - master
+
+teardown:
+  retry: 2
+  stage: teardown
+  script:
+    - ./deploy/teardown.sh
+  only:
+    refs:
+      - master

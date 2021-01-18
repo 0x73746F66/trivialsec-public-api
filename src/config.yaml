@@ -1,0 +1,70 @@
+---
+app:
+  env: Prod
+  version: 21.1.8
+  log_file: /tmp/application.log
+  log_level: WARNING
+  http_proxy: proxy.trivialsec.local:3128
+  https_proxy: proxy.trivialsec.local:3128
+  frontend:
+    site_scheme: "https://"
+    site_domain: www.trivialsec.com
+    api_scheme: "https://"
+    api_domain: api.trivialsec.com
+    socket_scheme: "wss://"
+    socket_domain: ws.trivialsec.com
+  backend:
+    socket_scheme: "wss://"
+    socket_domain: ws.trivialsec.com
+  cve:
+    url: http://search:5180
+  nameservers:
+    - 169.254.169.253
+  nmap:
+    ports: 20-23,25,53,57,67-69,80,81,82,107-113,115,118-119,135,137-139,143,153,156,170,177,179,194,209,213,218,220,300,311,366,369-371,383,384,387,389,399,427,433,434,443-445,464,465,475,491,514,515,517,518,520,521,524,530-533,540,546-548,556,560,561,563-585,587,591,593,601,604,623,625,631,635,636,639,641,646-648,653-655,657,660,666,674,688,690,691,706,711,712,749-754,760,782,783,808,832,843,847,848,873,953-61000
+
+redis:
+  host: master.trivialsec-prod-redis.4kjmta.apse2.cache.amazonaws.com
+  ssl: True
+  ttl: 300
+
+mysql:
+  database: trivialsec
+  user: trivialsec
+  host: trivialsec-main.c3qpuhf7bu2e.ap-southeast-2.rds.amazonaws.com
+
+aws:
+  region_name: ap-southeast-2
+  archive_bucket: trivialsec-assets
+  archive_object_prefix: archive/
+  public_bucket: trivialsec-assets
+  public_object_prefix: static/
+
+sendgrid:
+  templates:
+    invitations: d-ddd501dd76634f12bdba7dfcee416270
+    registrations: d-1259c22153484803bdc4d6cb490571a6
+    subscriptions: d-14c95c71ba5f40deac27eb8e0bcd0373
+    updated_email: d-30f820fc0f8a4f4d9f0fd5592a7419b5
+    reset_password: d-d6ec3c4db69b46cd8a4bf873ef03bf16
+  groups:
+    notifications: 14193
+    focus_group: 14107
+    subscriptions: 14106
+    marketing: 14105
+  lists:
+    subscribers: a656c506-1a36-45ad-ad29-bb54db25ccd9
+
+stripe:
+  account: acct_1HTJBRGZtHTgMn6l
+  products:
+    enterprise:
+      product_id: prod_I3YKq0kh5u21Gy
+    standard:
+      product_id: prod_I3QXcZm1iVM4nZ
+      monthly: price_1HTJfyGZtHTgMn6lhohsngNb
+      yearly: price_1HTJfzGZtHTgMn6lUTHe2gbq
+    professional: 
+      product_id: prod_I3Qc8SWBstGEJg
+      monthly: price_1HTJkpGZtHTgMn6lgDC7UDf0
+      yearly: price_1HTJkpGZtHTgMn6l1xGWhRVb
