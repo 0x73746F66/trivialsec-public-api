@@ -6,27 +6,31 @@ http_method=$2 # GET POST
 path_uri=$3
 json_data=$4
 base_path=https://www.trivialsec.com
-#  -H "Referer: ${base_path}${path_uri}"
-api_key=0cbd6369526457cebea116273ebf1fcb
-api_key_secret=fi3GrjfQiGp3z0P0iFrTljRSiQTNdzR9OHhzB5zLXiA
+domain_url=https://api.trivialsec.com
+# domain_url=http://localhost:8080
+# -H "Referer: ${base_path}${path_uri}"
+api_key=0CBD6369526457CEBEA116273EBF1FCB
+api_key_secret=258dfa868ed95572a36dbc4941482a49
 req_date=$(TZ=UTC date +'%FT%T')
 
 if ! [ -z "${json_data}" ]; then
     echo -n ${json_data} | curl -s --compressed \
+        --dump-header headers.log \
         -X ${http_method} \
         -H 'Content-Type: application/json' \
         -H "X-Digest: HMAC-$(printf '%s\n' $digest | awk '{ print toupper($0) }')" \
         -H "X-Signature: $(echo -n "${http_method}\n${path_uri}\n${req_date}\n$(echo -n $json_data | openssl enc -base64)" | openssl dgst -${digest} -hmac "${api_key_secret}" | sed 's/^.*= //')" \
         -H "X-ApiKey: ${api_key}" \
         -H "X-Date: ${req_date}" \
-        --data @- -- http://localhost:8080${path_uri}
+        --data @- -- ${domain_url}${path_uri}
 else
     curl -s --compressed \
+        --dump-header headers.log \
         -X ${http_method} \
         -H 'Content-Type: application/json' \
         -H "X-Digest: HMAC-$(printf '%s\n' $digest | awk '{ print toupper($0) }')" \
         -H "X-Signature: $(echo -n "${http_method}\n${path_uri}\n${req_date}" | openssl dgst -${digest} -hmac "${api_key_secret}" | sed 's/^.*= //')" \
         -H "X-ApiKey: ${api_key}" \
         -H "X-Date: ${req_date}" \
-        http://localhost:8080${path_uri}
+        ${domain_url}${path_uri}
 fi

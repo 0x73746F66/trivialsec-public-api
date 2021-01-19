@@ -86,7 +86,7 @@ package: prep
 
 package-upload: package
 	$(CMD_AWS) s3 cp --only-show-errors $(APP_NAME).zip s3://cloudformation-trivialsec/deploy-packages/$(APP_NAME)-$(COMMON_VERSION).zip
-	$(CMD_AWS) s3 cp --only-show-errors deploy/nginx.conf s3://cloudformation-trivialsec/deploy-packages/nginx.conf
+	$(CMD_AWS) s3 cp --only-show-errors deploy/nginx.conf s3://cloudformation-trivialsec/deploy-packages/$(APP_NAME)-nginx.conf
 
 package-dev: common-dev package
 	zip -d $(APP_NAME).zip src/.flaskenv

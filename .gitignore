@@ -101,3 +101,4 @@ scripts/deploy/packages/
 web/docker/packages/
 workers/docker/packages/
 scripts/deploy/route53-resource-record-set.json
+headers.log

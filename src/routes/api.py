@@ -24,7 +24,7 @@ def test():
         ret = {**ret, **params}
     return jsonify(ret)
 
-@blueprint.route('/search/<model>', methods=['POST'])
+@blueprint.route('/search/<string:model>', methods=['POST'])
 @login_required
 def api_search(model=None):
     params = request.get_json()
@@ -48,7 +48,7 @@ def api_search(model=None):
 
     return jsonify(data)
 
-@blueprint.route('/domain-verify/<target>', methods=['GET'])
+@blueprint.route('/domain-verify/<string:target>', methods=['GET'])
 @login_required
 def api_domain_verify(target):
     if not check_domain_rules(target):

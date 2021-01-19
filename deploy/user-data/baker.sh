@@ -78,7 +78,7 @@ function install_api_deps() {
     proxy_off
 }
 function deploy_api() {
-    aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/nginx.conf /etc/nginx/nginx.conf
+    aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/api-nginx.conf /etc/nginx/nginx.conf
     aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/api-${COMMON_VERSION}.zip /tmp/trivialsec/api.zip
     aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl \
         /srv/app/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl

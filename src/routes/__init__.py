@@ -17,8 +17,7 @@ def teardown_request_func(error: Exception = None):
 
 @app.before_request
 def before_request():
-    if request.path == '/':
-        #TODO API Documentation
+    if request.path in ['/', '/v1', '/healthcheck']:
         return make_response(), 204
 
     if request.method == "OPTIONS":
