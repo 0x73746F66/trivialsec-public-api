@@ -85,7 +85,6 @@ def api_domain_metadata():
     service_type = ServiceType(name='metadata')
     service_type.hydrate('name')
     queue_job(
-        tracking_id=params.get("project_tracking_id"),
         service_type=service_type,
         member=current_user,
         project=project,
@@ -118,7 +117,6 @@ def api_domain_dns():
     service_type = ServiceType(name='drill')
     service_type.hydrate('name')
     queue_job(
-        tracking_id=params.get("project_tracking_id"),
         service_type=service_type,
         member=current_user,
         project=project,
@@ -151,7 +149,6 @@ def api_domain_subdomains():
     service_type = ServiceType(name='amass')
     service_type.hydrate('name')
     queue_job(
-        tracking_id=params.get("project_tracking_id"),
         service_type=service_type,
         member=current_user,
         project=project,
@@ -194,7 +191,6 @@ def api_domain_tls():
     service_type = ServiceType(name='testssl')
     service_type.hydrate('name')
     queue_job(
-        tracking_id=params.get("project_tracking_id"),
         service_type=service_type,
         member=current_user,
         project=project,
@@ -223,7 +219,6 @@ def api_create_project():
         project.hydrate()
         project.deleted = False
 
-    project.tracking_id = params.get('project_tracking_id')
     target = params.get('domain_name')
     if not is_valid_ipv4_address(target) and not is_valid_ipv6_address(target) and not check_domain_rules(target):
         params['status'] = 'error'
@@ -273,7 +268,6 @@ def api_create_project():
     metadata = ServiceType(name='metadata')
     metadata.hydrate('name')
     queue_job(
-        tracking_id=params.get('project_tracking_id'),
         service_type=metadata,
         priority=3,
         member=current_user,
@@ -283,7 +277,6 @@ def api_create_project():
     drill = ServiceType(name='drill')
     drill.hydrate('name')
     queue_job(
-        tracking_id=params.get('project_tracking_id'),
         service_type=drill,
         priority=1,
         member=current_user,
