@@ -6,8 +6,8 @@ http_method=$2 # GET POST
 path_uri=$3
 json_data=$4
 # base_path=https://www.trivialsec.com
-domain_url=https://api.trivialsec.com
-# domain_url=http://localhost:8080
+# domain_url=https://api.trivialsec.com
+domain_url=http://localhost:8080
 # -H "Referer: ${base_path}${path_uri}"
 api_key=0CBD6369526457CEBEA116273EBF1FCB
 api_key_secret=258dfa868ed95572a36dbc4941482a49

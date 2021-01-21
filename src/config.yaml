@@ -1,7 +1,7 @@
 ---
 app:
   env: Prod
-  version: 21.1.18
+  version: 21.1.19
   log_file: /tmp/application.log
   log_level: WARNING
   http_proxy: proxy.trivialsec.local:3128
