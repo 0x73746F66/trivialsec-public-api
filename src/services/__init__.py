@@ -1,10 +1,14 @@
 from datetime import datetime
 import socket
-from trivialsec import models
+from trivialsec.models.feed import Feed
+from trivialsec.models.member import Member
+from trivialsec.models.activity_log import ActivityLog
+from trivialsec.models.key_value import KeyValue
+from trivialsec.models.finding import FindingDetail
 
 
-def handle_upsert_feeds(params: dict, member: models.Member) -> models.Feed:
-    feed = models.Feed(feed_id=params.get('feed_id'))
+def handle_upsert_feeds(params: dict, member: Member) -> Feed:
+    feed = Feed(feed_id=params.get('feed_id'))
     feed.name = params.get('name')
     feed.description = params.get('description')
     feed.url = params.get('url')
@@ -20,13 +24,13 @@ def handle_upsert_feeds(params: dict, member: models.Member) -> models.Feed:
     feed.credential_key = params.get('credential_key')
 
     if feed.persist():
-        models.ActivityLog(member_id=member.member_id, action='edited_feed', description=feed.name).persist()
+        ActivityLog(member_id=member.member_id, action='edited_feed', description=feed.name).persist()
         return feed
 
     return None
 
-def handle_upsert_keyvalues(params: dict, member: models.Member) -> models.KeyValue:
-    keyvalue = models.KeyValue(key_value_id=params.get('key_value_id'))
+def handle_upsert_keyvalues(params: dict, member: Member) -> KeyValue:
+    keyvalue = KeyValue(key_value_id=params.get('key_value_id'))
     keyvalue.type = params.get('type')
     keyvalue.key = params.get('key')
     keyvalue.value = params.get('value')
@@ -34,13 +38,13 @@ def handle_upsert_keyvalues(params: dict, member: models.Member) -> models.KeyVa
     keyvalue.active_date = params.get('active_date')
 
     if keyvalue.persist():
-        models.ActivityLog(member_id=member.member_id, action='edited_keyvalue', description=keyvalue.key).persist()
+        ActivityLog(member_id=member.member_id, action='edited_keyvalue', description=keyvalue.key).persist()
         return keyvalue
 
     return None
 
-def handle_update_recommendations_review(params: dict, member: models.Member) -> models.FindingDetail:
-    review = models.FindingDetail(finding_detail_id=params.get('finding_detail_id'))
+def handle_update_recommendations_review(params: dict, member: Member) -> FindingDetail:
+    review = FindingDetail(finding_detail_id=params.get('finding_detail_id'))
     review.hydrate()
     review.title = params.get('title')
     review.description = params.get('description')
@@ -57,7 +61,7 @@ def handle_update_recommendations_review(params: dict, member: models.Member) ->
     review.modified_by_id = member.member_id
 
     if review.persist():
-        models.ActivityLog(member_id=member.member_id, action='edited_finding_detail', description=review.finding_detail_id).persist()
+        ActivityLog(member_id=member.member_id, action='edited_finding_detail', description=review.finding_detail_id).persist()
         return review
 
     return None

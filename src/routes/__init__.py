@@ -7,7 +7,13 @@ from trivialsec.helpers import messages, hash_password, oneway_hash, check_passw
 from trivialsec.helpers.config import config
 from trivialsec.helpers.hmac import validate
 from trivialsec.helpers.log_manager import logger
-from trivialsec.models import ApiKey, Member, Account, Plan, ActivityLog, Invitation, Subscriber
+from trivialsec.models.apikey import ApiKey
+from trivialsec.models.member import Member
+from trivialsec.models.account import Account
+from trivialsec.models.plan import Plan
+from trivialsec.models.activity_log import ActivityLog
+from trivialsec.models.invitation import Invitation
+from trivialsec.models.subscriber import Subscriber
 
 
 @app.teardown_request

@@ -7,7 +7,16 @@ from trivialsec.helpers.log_manager import logger
 from trivialsec.helpers.payments import checkout
 from trivialsec.helpers.sendgrid import send_email
 from trivialsec.helpers.transport import HTTPMetadata
-from trivialsec.models import Domain, Domains, DomainStat, Project, ServiceType, ActivityLog, KnownIp, Plan, Member, Account, AccountConfig, Invitation, Role, Roles
+from trivialsec.models.domain import Domain, Domains, DomainStat
+from trivialsec.models.project import Project
+from trivialsec.models.service_type import ServiceType
+from trivialsec.models.activity_log import ActivityLog
+from trivialsec.models.known_ip import KnownIp
+from trivialsec.models.plan import Plan
+from trivialsec.models.member import Member
+from trivialsec.models.account import Account, AccountConfig
+from trivialsec.models.invitation import Invitation
+from trivialsec.models.role import Role, Roles
 from trivialsec.services.jobs import queue_job
 from trivialsec.services.domains import handle_add_domain
 
