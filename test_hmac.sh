@@ -9,8 +9,8 @@ json_data=$4
 # domain_url=https://api.trivialsec.com
 domain_url=http://localhost:8080
 # -H "Referer: ${base_path}${path_uri}"
-api_key=0CBD6369526457CEBEA116273EBF1FCB
-api_key_secret=258dfa868ed95572a36dbc4941482a49
+api_key=${LOCAL_API_KEY}
+api_key_secret=${LOCAL_API_SECRET_KEY}
 req_date=$(TZ=UTC date +'%FT%T')
 
 if ! [ -z "${json_data}" ]; then
