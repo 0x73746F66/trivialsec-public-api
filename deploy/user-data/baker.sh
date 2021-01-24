@@ -1,6 +1,6 @@
 #!/bin/bash -xe
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-export COMMON_VERSION=0.3.2
+export COMMON_VERSION=0.3.3
 
 function proxy_on() {
     local proxyPrivateAddr=proxy.trivialsec.local
