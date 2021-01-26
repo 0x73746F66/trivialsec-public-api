@@ -362,46 +362,6 @@ def api_update_email():
 
     return jsonify(params)
 
-# @control_timing_attacks(seconds=2)
-# @blueprint.route('/change-password', methods=['POST'])
-# @login_required
-# def api_change_password():
-#     errors = []
-#     params = request.get_json()
-
-#     if not check_encrypted_password(params.get('old_password'), current_user.password):
-#         errors.append(messages.ERR_VALIDATION_WRONG_PASSWORD)
-#     if params.get('new_password') != params.get('repeat_password'):
-#         errors.append(messages.ERR_VALIDATION_PASSWORDS_MATCH)
-#     if not check_password_policy(params.get('new_password')):
-#         errors.append(messages.ERR_VALIDATION_PASSWORD_POLICY)
-
-#     if len(errors) > 0:
-#         params['status'] = 'error'
-#         params['message'] = "\n".join(errors)
-#         return jsonify(params)
-
-#     current_user.password = hash_password(params.get('new_password'))
-#     if current_user.persist():
-#         if request.headers.getlist("X-Forwarded-For"):
-#             remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
-#         else:
-#             remote_addr = request.remote_addr
-#         ActivityLog(
-#             member_id=current_user.member_id,
-#             action=ActivityLog.ACTION_USER_CHANGED_PASSWORD,
-#             description=f'{remote_addr}\t{request.user_agent}'
-#         ).persist()
-#         params['status'] = 'success'
-#         params['message'] = messages.OK_CHANGED_PASSWORD
-#         return jsonify(params)
-
-#     if len(errors) > 0:
-#         params['status'] = 'error'
-#         params['message'] = "\n".join(errors)
-
-#     return jsonify(params)
-
 @blueprint.route('/invitation', methods=['POST'])
 @login_required
 def api_invitation():
