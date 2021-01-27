@@ -71,17 +71,17 @@ def load_user(user_id: int) -> Member:
         return abort(401)
     member.get_roles()
     apikey = ApiKey(member_id=member.member_id, comment='public-api')
-    apikey.hydrate(['member_id', 'comment'])
+    apikey.hydrate(['member_id', 'comment'], ttl_seconds=10)
     if apikey.api_key_secret is None or apikey.active is not True:
         logger.debug(f'api_key_secret empty or inactive public-api key for user {user_id}')
         return abort(401)
     account = Account(account_id=member.account_id)
-    account.hydrate()
+    account.hydrate(ttl_seconds=30)
     if not isinstance(account, Account):
         logger.debug(f'missing account_id {member.account_id} for user {user_id}')
         return abort(401)
     plan = Plan(plan_id=account.plan_id)
-    plan.hydrate()
+    plan.hydrate(ttl_seconds=30)
     if not isinstance(plan, Plan):
         logger.debug(f'missing plan for account_id {member.account_id} and user {user_id}')
         return abort(401)
