@@ -100,11 +100,6 @@ def api_domain_metadata():
         priority=2,
         params={'target': domain.name}
     )
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_DOMAIN_METADATA_CHECK,
-        description=f'{domain.name}'
-    ).persist()
 
     return jsonify({
         'status': 'success',
@@ -132,11 +127,6 @@ def api_domain_dns():
         priority=2,
         params={'target': domain.name}
     )
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_ON_DEMAND_SCAN,
-        description=f'DNS {domain.name}'
-    ).persist()
 
     return jsonify({
         'status': 'success',
@@ -157,18 +147,14 @@ def api_domain_subdomains():
 
     service_type = ServiceType(name='amass')
     service_type.hydrate('name')
+    scan_type = 'passive'
     queue_job(
         service_type=service_type,
         member=current_user,
         project=project,
         priority=2,
-        params={'target': domain.name}
+        params={'target': domain.name, 'scan_type': scan_type}
     )
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_ON_DEMAND_SCAN,
-        description=f'Subdomains {domain.name}'
-    ).persist()
 
     return jsonify({
         'status': 'success',
@@ -206,11 +192,6 @@ def api_domain_tls():
         priority=2,
         params={'target': domain.name, 'scan_type': scan_type}
     )
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_ON_DEMAND_SCAN,
-        description=f'TLS {domain.name}'
-    ).persist()
 
     return jsonify({
         'status': 'success',
@@ -290,7 +271,8 @@ def api_create_project():
         priority=1,
         member=current_user,
         project=project,
-        params={'target': domain.name}
+        params={'target': domain.name},
+        on_demand=False
     )
 
     params['status'] = 'success'
