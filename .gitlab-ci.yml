@@ -1,5 +1,5 @@
 variables:
-  COMMON_VERSION: 0.3.8
+  COMMON_VERSION: 0.3.9
   APP_NAME: api
   TAG_ENV: Prod
   TAG_PURPOSE: Deploy
