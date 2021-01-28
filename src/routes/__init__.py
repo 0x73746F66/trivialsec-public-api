@@ -45,8 +45,8 @@ def before_request():
     member.get_roles()
     account = Account(account_id=member.account_id)
     account.hydrate()
-    plan = Plan(plan_id=account.plan_id)
-    plan.hydrate()
+    plan = Plan(account_id=account.account_id)
+    plan.hydrate('account_id')
     setattr(account, 'plan', plan)
     setattr(member, 'account', account)
     setattr(member, 'apikey', apikey)
@@ -80,8 +80,8 @@ def load_user(user_id: int) -> Member:
     if not isinstance(account, Account):
         logger.debug(f'missing account_id {member.account_id} for user {user_id}')
         return abort(401)
-    plan = Plan(plan_id=account.plan_id)
-    plan.hydrate(ttl_seconds=30)
+    plan = Plan(account_id=account.account_id)
+    plan.hydrate('account_id', ttl_seconds=30)
     if not isinstance(plan, Plan):
         logger.debug(f'missing plan for account_id {member.account_id} and user {user_id}')
         return abort(401)
