@@ -1,12 +1,12 @@
 #!/bin/bash -xe
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-export COMMON_VERSION=0.3.10
+export COMMON_VERSION=0.4.1
 
 function proxy_on() {
     local proxyPrivateAddr=proxy.trivialsec.local
     export http_proxy=http://${proxyPrivateAddr}:3128/
     export https_proxy=http://${proxyPrivateAddr}:3128/
-    export no_proxy=169.254.169.254,cloudformation-trivialsec.s3.amazonaws.com,s3.ap-southeast-2.amazonaws.com,ssm.ap-southeast-2.amazonaws.com,logs.ap-southeast-2.amazonaws.com,sts.amazonaws.com
+    export no_proxy=169.254.169.254,trivialsec-assets.s3.amazonaws.com,s3.ap-southeast-2.amazonaws.com,ssm.ap-southeast-2.amazonaws.com,logs.ap-southeast-2.amazonaws.com,sts.amazonaws.com
 }
 function proxy_off() {
     unset http_proxy
@@ -78,11 +78,11 @@ function install_api_deps() {
     proxy_off
 }
 function deploy_api() {
-    aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/api-nginx.conf /etc/nginx/nginx.conf
-    aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/api-${COMMON_VERSION}.zip /tmp/trivialsec/api.zip
-    aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl \
+    aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/${COMMON_VERSION}/api-nginx.conf /etc/nginx/nginx.conf
+    aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/${COMMON_VERSION}/api.zip /tmp/trivialsec/api.zip
+    aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl \
         /srv/app/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl
-    aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/build-${COMMON_VERSION}.zip /tmp/trivialsec/build.zip
+    aws s3 cp --only-show-errors s3://trivialsec-assets/ploy-packagesploy-packages/${COMMON_VERSION}/build.zip /tmp/trivialsec/build.zip
     unzip -qo /tmp/trivialsec/api.zip -d /tmp/trivialsec
     unzip -qo /tmp/trivialsec/build.zip -d /srv/app
     cp -nr /tmp/trivialsec/src/* /srv/app/

@@ -28,17 +28,17 @@ prep:
 
 common: prep
 	yes | pip uninstall -q trivialsec-common
-	aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl
-	aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-packages/build-${COMMON_VERSION}.zip build.zip
+	aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
+	aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/$(COMMON_VERSION)/build.zip build.zip
 	unzip -qo build.zip
-	pip install -q --no-cache-dir --find-links=build/wheel --no-index trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl
+	pip install -q --no-cache-dir --find-links=build/wheel --no-index trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
 
 common-dev: prep ## Install trivialsec_common lib from local build
 	yes | pip uninstall -q trivialsec-common
 	cp -fu $(LOCAL_CACHE)/build.zip build.zip
 	cp -fu $(LOCAL_CACHE)/trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
 	unzip -qo build.zip
-	pip install -q --no-cache-dir --find-links=build/wheel --no-index trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl
+	pip install -q --no-cache-dir --find-links=build/wheel --no-index trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
 
 install-dev:
 	pip install -q -U pip setuptools pylint wheel awscli
@@ -85,9 +85,9 @@ package: prep
 	zip -uj9q $(APP_NAME).zip docker/requirements.txt
 
 package-upload: package
-	$(CMD_AWS) s3 cp --only-show-errors $(APP_NAME).zip s3://cloudformation-trivialsec/deploy-packages/$(APP_NAME)-$(COMMON_VERSION).zip
-	$(CMD_AWS) s3 cp --only-show-errors deploy/nginx.conf s3://cloudformation-trivialsec/deploy-packages/$(APP_NAME)-nginx.conf
+	$(CMD_AWS) s3 cp --only-show-errors $(APP_NAME).zip s3://trivialsec-assets/deploy-packages/$(COMMON_VERSION)/$(APP_NAME).zip
+	$(CMD_AWS) s3 cp --only-show-errors deploy/nginx.conf s3://trivialsec-assets/deploy-packages/$(COMMON_VERSION)/$(APP_NAME)-nginx.conf
 
 package-dev: common-dev package
 	zip -d $(APP_NAME).zip src/.flaskenv
-	$(CMD_AWS) s3 cp --only-show-errors $(APP_NAME).zip s3://cloudformation-trivialsec/deploy-packages/$(APP_NAME)-dev-$(COMMON_VERSION).zip
+	$(CMD_AWS) s3 cp --only-show-errors $(APP_NAME).zip s3://trivialsec-assets/dev/$(COMMON_VERSION)/$(APP_NAME).zip

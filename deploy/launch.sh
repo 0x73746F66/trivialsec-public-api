@@ -73,7 +73,7 @@ function setup_ssh() {
     local ip_address=$1
     mkdir -p ~/.ssh
     ssh-keygen -R ${proxy_host}
-    aws s3 cp --only-show-errors s3://cloudformation-trivialsec/deploy-keys/${PRIV_KEY_NAME}.pem ~/.ssh/${PRIV_KEY_NAME}.pem
+    aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-keys/${PRIV_KEY_NAME}.pem ~/.ssh/${PRIV_KEY_NAME}.pem
     chmod 400 ~/.ssh/${PRIV_KEY_NAME}.pem
     ssh-keyscan -H ${proxy_host} >> ~/.ssh/known_hosts
     cat > ~/.ssh/config << EOF
