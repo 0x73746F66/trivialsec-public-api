@@ -5,7 +5,7 @@ digest=$1 # sha256 sha512 sha3-256 sha3-384 sha3-512 blake2b512
 http_method=$2 # GET POST
 path_uri=$3
 json_data=$4
-# base_path=https://www.trivialsec.com
+# base_path=https://app.trivialsec.com
 # domain_url=https://api.trivialsec.com
 domain_url=http://localhost:8080
 # -H "Referer: ${base_path}${path_uri}"

@@ -6,6 +6,9 @@ app:
   log_level: DEBUG
   http_proxy: proxy.trivialsec.com:3128
   https_proxy: proxy.trivialsec.com:3128
+  website:
+    site_scheme: "file://"
+    site_domain: /mnt/nvme/trivialsec/website/src/index.html
   frontend:
     site_scheme: "http://"
     site_domain: localhost:5000

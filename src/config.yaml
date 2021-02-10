@@ -6,9 +6,12 @@ app:
   log_level: WARNING
   http_proxy: proxy.trivialsec.local:3128
   https_proxy: proxy.trivialsec.local:3128
-  frontend:
+  website:
     site_scheme: "https://"
     site_domain: www.trivialsec.com
+  frontend:
+    site_scheme: "https://"
+    site_domain: app.trivialsec.com
     api_scheme: "https://"
     api_domain: api.trivialsec.com
     socket_scheme: "wss://"
