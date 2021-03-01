@@ -53,8 +53,6 @@ def handle_update_recommendations_review(params: dict, member: Member) -> Findin
     review.type_namespace = params.get('type_namespace')
     review.type_category = params.get('type_category')
     review.type_classifier = params.get('type_classifier')
-    review.criticality = params.get('criticality')
-    review.confidence = params.get('confidence')
     review.severity_product = params.get('severity_product')
     review.review = 0
     review.updated_at = datetime.utcnow()

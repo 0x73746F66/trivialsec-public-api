@@ -1,4 +1,5 @@
 from datetime import datetime
+from importlib import invalidate_caches
 from flask import Blueprint, jsonify, request, abort
 from flask_login import current_user, login_required
 from trivialsec.helpers import messages, oneway_hash, check_encrypted_password, check_password_policy, check_domain_rules, check_email_rules, is_valid_ipv4_address, is_valid_ipv6_address
@@ -6,7 +7,7 @@ from trivialsec.helpers.config import config
 from trivialsec.helpers.log_manager import logger
 from trivialsec.helpers.payments import checkout
 from trivialsec.helpers.sendgrid import send_email
-from trivialsec.helpers.transport import HTTPMetadata
+from trivialsec.helpers.transport import Metadata
 from trivialsec.models.domain import Domain, Domains, DomainStat
 from trivialsec.models.project import Project
 from trivialsec.models.service_type import ServiceType
@@ -66,7 +67,7 @@ def api_domain_verify(target):
             'registered': False,
             'result': False
         })
-    http_metadata = HTTPMetadata(url=f'https://{target}').verification_check()
+    http_metadata = Metadata(url=f'https://{target}').verification_check()
     ActivityLog(
         member_id=current_user.member_id,
         action=ActivityLog.ACTION_DOMAIN_VERIFICATION_CHECK,
@@ -262,7 +263,8 @@ def api_create_project():
         priority=3,
         member=current_user,
         project=project,
-        params={'target': domain.name}
+        params={'target': domain.name},
+        scan_next=['amass', 'testssl']
     )
     drill = ServiceType(name='drill')
     drill.hydrate('name')

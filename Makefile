@@ -29,15 +29,15 @@ prep:
 common: prep
 	yes | pip uninstall -q trivialsec-common
 	aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
-	aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/$(COMMON_VERSION)/build.zip build.zip
-	unzip -qo build.zip
+	aws s3 cp --only-show-errors s3://trivialsec-assets/deploy-packages/$(COMMON_VERSION)/build.tgz build.tgz
+	tar -xzvf build.tgz
 	pip install -q --no-cache-dir --find-links=build/wheel --no-index trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
 
 common-dev: prep ## Install trivialsec_common lib from local build
 	yes | pip uninstall -q trivialsec-common
-	cp -fu $(LOCAL_CACHE)/build.zip build.zip
+	cp -fu $(LOCAL_CACHE)/build.tgz build.tgz
 	cp -fu $(LOCAL_CACHE)/trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
-	unzip -qo build.zip
+	tar -xzvf build.tgz
 	pip install -q --no-cache-dir --find-links=build/wheel --no-index trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
 
 install-dev:

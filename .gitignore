@@ -96,7 +96,8 @@ assets/site/
 DATA/
 LOGS/
 *.zip
-*.tar.gz
+*.tgz
+*.gz
 scripts/deploy/packages/
 web/docker/packages/
 workers/docker/packages/

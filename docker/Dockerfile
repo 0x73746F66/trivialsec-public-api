@@ -48,8 +48,8 @@ RUN mkdir -p /var/log/uwsgi /var/cache/nginx && \
     aws s3 cp --only-show-errors s3://trivialsec-assets/dev/${COMMON_VERSION}/api.zip /tmp/trivialsec/api.zip && \
     aws s3 cp --only-show-errors s3://trivialsec-assets/dev/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl \
         /srv/app/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl && \
-    aws s3 cp --only-show-errors s3://trivialsec-assets/dev/${COMMON_VERSION}/build.zip /tmp/trivialsec/build.zip && \
-    unzip -qo /tmp/trivialsec/build.zip -d /srv/app && \
+    aws s3 cp --only-show-errors s3://trivialsec-assets/dev/${COMMON_VERSION}/build.tgz /tmp/trivialsec/build.tgz && \
+    tar -xzvf /tmp/trivialsec/build.tgz -C /srv/app && \
     unzip -qo /tmp/trivialsec/api.zip -d /tmp/trivialsec && \
     cp -nr /tmp/trivialsec/src/* /srv/app/ && \
     chown -R ec2-user: \
