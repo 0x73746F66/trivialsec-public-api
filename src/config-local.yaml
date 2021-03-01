@@ -1,7 +1,7 @@
 ---
 app:
   env: Dev
-  version: 21.2.10
+  version: 21.3.1
   log_file: /tmp/application.log
   log_level: DEBUG
   http_proxy: proxy.trivialsec.com:3128
