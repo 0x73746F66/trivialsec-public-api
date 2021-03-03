@@ -18,6 +18,7 @@ variables:
 before_script:
   - aws --version
   - pylint --version
+  - echo semgrep $(semgrep --version)
   - pip --version
 
 stages:

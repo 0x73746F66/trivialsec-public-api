@@ -41,11 +41,27 @@ common-dev: prep ## Install trivialsec_common lib from local build
 	pip install -q --no-cache-dir --find-links=build/wheel --no-index trivialsec_common-$(COMMON_VERSION)-py2.py3-none-any.whl
 
 install-dev:
-	pip install -q -U pip setuptools pylint wheel awscli
+	pip install -q -U pip setuptools pylint wheel awscli semgrep
 	pip install -q -U --no-cache-dir --isolated -r ./docker/requirements.txt
 
 lint:
 	pylint --jobs=0 --persistent=y --errors-only src/**/*.py
+	semgrep -q --strict --timeout=0 --config=p/ci --lang=py src/**/*.py
+	semgrep -q --strict --config p/minusworld.flask-xss --lang=py src/**/*.py
+
+test-local:
+	./test-hmac-local.sh sha256 GET /v1/test
+	./test-hmac-local.sh sha512 GET /v1/test
+	./test-hmac-local.sh sha3-256 GET /v1/test
+	./test-hmac-local.sh sha3-384 GET /v1/test
+	./test-hmac-local.sh sha3-512 GET /v1/test
+	./test-hmac-local.sh blake2b512 GET /v1/test
+	./test-hmac-local.sh sha256 POST /v1/test '{"domain_name":"trivialsec.com"}'
+	./test-hmac-local.sh sha512 POST /v1/test '{"domain_name":"trivialsec.com"}'
+	./test-hmac-local.sh sha3-256 POST /v1/test '{"domain_name":"trivialsec.com"}'
+	./test-hmac-local.sh sha3-384 POST /v1/test '{"domain_name":"trivialsec.com"}'
+	./test-hmac-local.sh sha3-512 POST /v1/test '{"domain_name":"trivialsec.com"}'
+	./test-hmac-local.sh blake2b512 POST /v1/test '{"domain_name":"trivialsec.com"}'
 
 build: prep package-dev ## Build compressed container
 	docker-compose build --compress
