@@ -2,18 +2,18 @@
 app:
   env: Dev
   version: 21.3.1
+  app_name: chris-eros
   log_file: /tmp/application.log
   log_level: DEBUG
   http_proxy: proxy.trivialsec.com:3128
   https_proxy: proxy.trivialsec.com:3128
-  website:
-    site_scheme: "file://"
-    site_domain: /mnt/nvme/trivialsec/website/src/index.html
   frontend:
     site_scheme: "http://"
-    site_domain: localhost:5000
+    site_domain: localhost:8080
+    app_scheme: "http://"
+    app_domain: localhost:5000
     api_scheme: "http://"
-    api_domain: localhost:8080
+    api_domain: localhost:5081
     socket_scheme: "http://"
     socket_domain: localhost:5080
   backend:
@@ -32,14 +32,14 @@ app:
     ports: 20-23,25,53,57,67-69,80,81,82,107-113,115,118-119,135,137-139,143,153,156,170,177,179,194,209,213,218,220,300,311,366,369-371,383,384,387,389,399,427,433,434,443-445,464,465,475,491,514,515,517,518,520,521,524,530-533,540,546-548,556,560,561,563-585,587,591,593,601,604,623,625,631,635,636,639,641,646-648,653-655,657,660,666,674,688,690,691,706,711,712,749-754,760,782,783,808,832,843,847,848,873,953-61000
 
 redis:
-  host: redis
+  host: localhost
   ssl: False
   ttl: 300
 
 mysql:
   database: trivialsec
   user: root
-  host: mysql
+  host: localhost
 
 aws:
   region_name: ap-southeast-2
@@ -55,6 +55,7 @@ sendgrid:
     subscriptions: d-14c95c71ba5f40deac27eb8e0bcd0373
     updated_email: d-30f820fc0f8a4f4d9f0fd5592a7419b5
     reset_password: d-d6ec3c4db69b46cd8a4bf873ef03bf16
+    magic-link: d-c356f835c3b541d2ba76f5f50bb5a27b
   groups:
     notifications: 14193
     focus_group: 14107

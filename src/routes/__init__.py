@@ -26,9 +26,13 @@ def before_request():
 
     if request.method == "OPTIONS":
         response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', f'{config.get_app().get("host_scheme")}{config.get_app().get("host_domain")}')
         response.headers.add("Access-Control-Allow-Headers", "X-ApiKey, X-Date, X-Digest, X-Signature, Content-Type")
         response.headers.add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        if request.environ.get('HTTP_ORIGIN') == config.get_app().get("app_url"):
+            response.headers.add('Access-Control-Allow-Origin', config.get_app().get("app_url"))
+        if request.environ.get('HTTP_ORIGIN') == config.get_app().get("site_url"):
+            response.headers.add('Access-Control-Allow-Origin', config.get_app().get("site_url"))
+
         return response
 
     apikey = validate(
@@ -57,7 +61,11 @@ def before_request():
 @app.after_request
 def after_request(response):
     if request.method in ["GET", "POST"] and hasattr(current_user, 'apikey'):
-        response.headers.add('Access-Control-Allow-Origin', f'{config.get_app().get("host_scheme")}{current_user.apikey.allowed_origin}')
+        if request.environ.get('HTTP_ORIGIN') == config.get_app().get("app_url"):
+            response.headers.add('Access-Control-Allow-Origin', config.get_app().get("app_url"))
+        if request.environ.get('HTTP_ORIGIN') == config.get_app().get("site_url"):
+            response.headers.add('Access-Control-Allow-Origin', config.get_app().get("site_url"))
+
     return response
 
 login_manager = LoginManager()

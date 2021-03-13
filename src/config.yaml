@@ -6,12 +6,11 @@ app:
   log_level: WARNING
   http_proxy: proxy.trivialsec.local:3128
   https_proxy: proxy.trivialsec.local:3128
-  website:
-    site_scheme: "https://"
-    site_domain: www.trivialsec.com
   frontend:
     site_scheme: "https://"
-    site_domain: app.trivialsec.com
+    site_domain: www.trivialsec.com
+    app_scheme: "https://"
+    app_domain: app.trivialsec.com
     api_scheme: "https://"
     api_domain: api.trivialsec.com
     socket_scheme: "wss://"
@@ -50,6 +49,7 @@ sendgrid:
     subscriptions: d-14c95c71ba5f40deac27eb8e0bcd0373
     updated_email: d-30f820fc0f8a4f4d9f0fd5592a7419b5
     reset_password: d-d6ec3c4db69b46cd8a4bf873ef03bf16
+    magic-link: d-c356f835c3b541d2ba76f5f50bb5a27b
   groups:
     notifications: 14193
     focus_group: 14107

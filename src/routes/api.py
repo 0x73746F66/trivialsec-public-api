@@ -310,7 +310,7 @@ def api_update_email():
     current_user.confirmation_sent = False
     current_user.confirmation_url = f"/confirmation/{oneway_hash(params.get('email'))}"
     current_user.persist()
-    confirmation_url = f"{config.frontend.get('site_scheme')}{config.frontend.get('site_domain')}{current_user.confirmation_url}"
+    confirmation_url = f"{config.frontend.get('app_url')}{current_user.confirmation_url}"
     try:
         send_email(
             subject="TrivialSec - email address updated",
@@ -380,7 +380,7 @@ def api_invitation():
             params['message'] = messages.ERR_INVITATION_FAILED
             return jsonify(params)
 
-        params['confirmation_url'] = f"{config.frontend.get('site_scheme')}{config.frontend.get('site_domain')}{invitation.confirmation_url}"
+        params['confirmation_url'] = f"{config.frontend.get('app_url')}{invitation.confirmation_url}"
         send_email(
             subject=f"Invitation to join TrivialSec organisation {current_user.account.alias}",
             recipient=invitation.email,
@@ -660,7 +660,7 @@ def api_organisation_member():
         member.confirmation_sent = False
         member.confirmation_url = f"/confirmation/{oneway_hash(params.get('email'))}"
         member.persist()
-        confirmation_url = f"{config.frontend.get('site_scheme')}{config.frontend.get('site_domain')}{member.confirmation_url}"
+        confirmation_url = f"{config.frontend.get('app_url')}{member.confirmation_url}"
         try:
             send_email(
                 subject="TrivialSec - email address updated",
