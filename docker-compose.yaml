@@ -1,6 +1,7 @@
 version: '3.6'
 x-defaults: &defaults
   env_file: .env
+  network_mode: host
   restart: unless-stopped
   logging:
     options:
@@ -35,35 +36,22 @@ services:
         LANG: C.UTF-8
     environment:
       - CONFIG_FILE=${CONFIG_FILE}
-      - FLASK_RUN_PORT=8080
+      - FLASK_RUN_PORT=5081
       - FLASK_DEBUG=1
       - FLASK_ENV=development
     ports:
-      - 8080:8080
+      - 5081:5081
       - 8000:8000
     volumes:
       - ./src/app:/srv/app/app
       - ./src/routes:/srv/app/routes
       - ./src/run.py:/srv/app/run.py
-    external_links:
-      - mysql
-      - sockets
-      - redis
     cap_drop:
       - ALL
     cap_add:
       - DAC_OVERRIDE
       - NET_BIND_SERVICE
-    networks:
-      trivialsec:
-        aliases:
-          - api
     healthcheck:
-      test: curl -f http://localhost:8080 || exit 1
+      test: curl -f http://localhost:5081 || exit 1
       timeout: 20s
       retries: 10
-
-networks:
-  trivialsec:
-    external: true
-    name: containers-common_trivialsec
