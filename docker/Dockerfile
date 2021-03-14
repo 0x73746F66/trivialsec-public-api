@@ -37,13 +37,8 @@ USER root
 WORKDIR /srv/app
 
 COPY docker/entrypoint.sh /srv/app/entrypoint.sh
-RUN mkdir -p /var/log/uwsgi /var/cache/nginx && \
+RUN mkdir -p /var/log/uwsgi && \
     touch /tmp/application.log && \
-    amazon-linux-extras enable nginx1 >/dev/null && \
-    yum install -q -y nginx && \
-    yum clean metadata && \
-    yum -q -y clean all && \
-    setcap 'cap_net_bind_service=+ep' /usr/sbin/nginx && \
     chmod a+x /srv/app/entrypoint.sh && \
     aws s3 cp --only-show-errors s3://trivialsec-assets/dev/${COMMON_VERSION}/api.zip /tmp/trivialsec/api.zip && \
     aws s3 cp --only-show-errors s3://trivialsec-assets/dev/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl \
@@ -55,9 +50,6 @@ RUN mkdir -p /var/log/uwsgi /var/cache/nginx && \
     chown -R ec2-user: \
         /srv/app \
         /var/log/uwsgi \
-        /var/log/nginx \
-        /var/lib/nginx \
-        /var/cache/nginx \
         /tmp/trivialsec \
         /tmp/application.log && \
     rm -rf /tmp/trivialsec

@@ -89,7 +89,7 @@ up: prep ## Start the app
 	docker-compose up -d $(APP_NAME)
 
 run: prep
-	docker-compose run -d --rm -p "8080:8080" --name $(APP_NAME) --entrypoint python3.8 $(APP_NAME) run.py
+	docker-compose run -d --rm -p "5081:5081" --name $(APP_NAME) --entrypoint python3.8 $(APP_NAME) run.py
 
 down: ## Stop the app
 	@docker-compose down
