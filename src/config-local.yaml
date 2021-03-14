@@ -1,7 +1,7 @@
 ---
 app:
   env: Dev
-  version: 21.3.1
+  version: 21.3.20
   app_name: chris-eros
   log_file: /tmp/application.log
   log_level: DEBUG
