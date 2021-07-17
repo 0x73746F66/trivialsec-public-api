@@ -81,11 +81,6 @@ terraform.*
 cert_dot_sh/*.csv
 cert_dot_sh/*.csv.part
 **/.*history
-mysql_datadir/
-s3_datadir/
-worker_datadir/
-mongo_datadir/
-redis_datadir/
 **/node_modules/
 
 **/*.pem

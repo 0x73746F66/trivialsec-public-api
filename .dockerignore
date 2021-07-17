@@ -1,4 +1,10 @@
-scripts/
+.repo/
+bin/
+plans/
+.env-example
+.gitignore
+.gitlab-ci.yml
+LICENSE.md
 .vscode/
 .vscode*
 .git/
@@ -16,12 +22,7 @@ terraform.*
 .pylintrc
 Makefile
 README.md
-mysql_datadir/
-worker_datadir/
-**/node_modules/
-redis_datadir/
-mongo_datadir/
 **/build/
-icons/
-scripts/
-**/*.zip
+assets/
+deploy/
+**/*.tgz

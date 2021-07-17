@@ -1,12 +1,12 @@
 ---
 app:
   env: Prod
-  version: 21.3.20
-  log_file: /tmp/application.log
-  log_level: WARNING
+  version: 21.6.28
   http_proxy: proxy.trivialsec.local:3128
   https_proxy: proxy.trivialsec.local:3128
   frontend:
+    asset_scheme: "https://"
+    asset_domain: www.trivialsec.com
     site_scheme: "https://"
     site_domain: www.trivialsec.com
     app_scheme: "https://"
@@ -37,10 +37,10 @@ mysql:
 
 aws:
   region_name: ap-southeast-2
-  archive_bucket: trivialsec-assets
-  archive_object_prefix: archive/
-  public_bucket: trivialsec-assets
-  public_object_prefix: static/
+  archive_bucket: archive-trivialsec
+  archive_object_prefix: prod/
+  public_bucket: assets-trivialsec
+  public_object_prefix: prod/
 
 sendgrid:
   templates:
@@ -57,6 +57,8 @@ sendgrid:
     marketing: 14105
   lists:
     subscribers: a656c506-1a36-45ad-ad29-bb54db25ccd9
+    members: 7c88b8a4-9b7a-4a25-9b09-be3d3a0cdcf3
+    trials: 6d72d4a5-5e15-455f-9cd4-0f28a9f06e24
 
 stripe:
   account: acct_1HTJBRGZtHTgMn6l

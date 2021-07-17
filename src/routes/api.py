@@ -1,12 +1,15 @@
 from datetime import datetime
-from importlib import invalidate_caches
-from flask import Blueprint, jsonify, request, abort
+import json
+from flask import Blueprint, jsonify, request, abort, current_app as app
 from flask_login import current_user, login_required
+from gunicorn.glogging import logging
+import webauthn
+
+from trivialsec.decorators import control_timing_attacks, require_recaptcha, prepared_json
 from trivialsec.helpers import messages, oneway_hash, check_encrypted_password, check_password_policy, check_domain_rules, check_email_rules, is_valid_ipv4_address, is_valid_ipv6_address
 from trivialsec.helpers.config import config
-from trivialsec.helpers.log_manager import logger
-from trivialsec.helpers.payments import checkout
-from trivialsec.helpers.sendgrid import send_email
+from trivialsec.helpers.payments import checkout, create_customer
+from trivialsec.helpers.sendgrid import send_email, upsert_contact
 from trivialsec.helpers.transport import Metadata
 from trivialsec.models.domain import Domain, Domains, DomainStat
 from trivialsec.models.project import Project
@@ -15,24 +18,268 @@ from trivialsec.models.activity_log import ActivityLog
 from trivialsec.models.known_ip import KnownIp
 from trivialsec.models.plan import Plan
 from trivialsec.models.member import Member
+from trivialsec.models.member_mfa import MemberMfa
 from trivialsec.models.account import Account, AccountConfig
 from trivialsec.models.invitation import Invitation
 from trivialsec.models.role import Role, Roles
+from trivialsec.services.accounts import register
 from trivialsec.services.jobs import queue_job
 from trivialsec.services.domains import handle_add_domain
 
 
+logger = logging.getLogger(__name__)
 blueprint = Blueprint('api', __name__)
 
 @blueprint.route('/test', methods=['GET', 'POST'])
 @login_required
-def test():
-    ret = {'member_id': current_user.member_id}
-    if request.method == 'POST':
-        logger.info(request.json)
-        params = request.json
-        ret = {**ret, **params}
-    return jsonify(ret)
+@prepared_json
+def test(params):
+    params['account'] = {'member_id': current_user.member_id}
+    params['status'] = 'success'
+    params['message'] = f'{request.method} {request.base_url}'
+    return jsonify(params)
+
+@control_timing_attacks(seconds=2)
+@blueprint.route('/register', methods=['POST'])
+@require_recaptcha(action='public_action')
+@prepared_json
+def api_register(params):
+    if not params.get('privacy'):
+        params['status'] = 'warning'
+        params['message'] = messages.ERR_ACCEPT_EULA
+        return jsonify(params)
+
+    if 'email' not in params or not check_email_rules(params.get('email')):
+        params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
+        return jsonify(params)
+
+    try:
+        member = register(
+            email_addr=params.get('email'),
+            company=params.get('company', params.get('email'))
+        )
+        if not isinstance(member, Member):
+            params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
+            return jsonify(params)
+        else:
+            plan = Plan(account_id=member.account_id)
+            plan.hydrate('account_id')
+            stripe_result = create_customer(member.email)
+            plan.stripe_customer_id = stripe_result.get('id')
+            plan.persist()
+            upsert_contact(recipient_email=params.get('email'), list_name='trials')
+            confirmation_url = f"{config.get_app().get('app_url')}{member.confirmation_url}"
+            send_email(
+                subject="TrivialSec Confirmation",
+                recipient=member.email,
+                template='registrations',
+                data={
+                    "invitation_message": "Please click the Activation link below, or copy and paste it into a browser if you prefer.",
+                    "activation_url": confirmation_url
+                }
+            )
+            member.confirmation_sent = True
+            member.persist()
+            params['status'] = 'success'
+            params['message'] = messages.OK_REGISTERED
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/registration/webauthn', methods=['POST'])
+@require_recaptcha(action='confirmation_action')
+@prepared_json
+def api_confirmation_webauthn(params):
+    try:
+        member = Member()
+        member.confirmation_url = f'/confirmation/{params.get("confirmation_hash")}'
+        if not member.exists(['confirmation_url']):
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        member.hydrate()
+        mfa = MemberMfa()
+        mfa.member_id = member.member_id
+        mfa.type = 'webauthn'
+        if mfa.exists(['member_id', 'type']):
+            mfa.hydrate(['member_id', 'type'])
+
+        mfa.webauthn_id = params.get("webauthn_id")
+        mfa.webauthn_challenge = params.get("webauthn_challenge")
+        mfa.webauthn_public_key = params.get("webauthn_public_key")
+        webauthn_registration_response = webauthn.WebAuthnRegistrationResponse(
+            rp_id=config.get_app().get("app_domain"),
+            origin=config.get_app().get("app_url"),
+            registration_response={
+                'attObj': params.get('attestationObject'),
+                'clientData': params.get('clientDataJSON'),
+            },
+            challenge=mfa.webauthn_challenge
+        )
+        webauthn_registration_response.verify()
+        mfa.persist()
+        params['status'] = 'success'
+        params['message'] = messages.OK_REGISTERED_MFA
+        return jsonify(params)
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/registration/totp', methods=['POST'])
+@require_recaptcha(action='confirmation_action')
+@prepared_json
+def api_confirmation_totp(params):
+    try:
+        member = Member()
+        member.confirmation_url = f'/confirmation/{params.get("confirmation_hash")}'
+        if member.exists(['confirmation_url']):
+            member.hydrate()
+            params['status'] = 'success'
+            params['message'] = messages.OK_REGISTERED_MFA
+            return jsonify(params)
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/authorization/webauthn', methods=['POST'])
+@require_recaptcha(action='authorization_action')
+@prepared_json
+def api_authorization_webauthn(params):
+    try:
+        member = Member()
+        member.confirmation_url = f'/confirmation/{params.get("confirmation_hash")}'
+        if not member.exists(['confirmation_url']):
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        member.hydrate()
+        mfa = MemberMfa()
+        mfa.member_id = member.member_id
+        mfa.type = 'webauthn'
+        if not mfa.hydrate(['member_id', 'type']):
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        webauthn_user = webauthn.WebAuthnUser(
+            user_id=member.email.encode('utf8'),
+            username=member.email,
+            display_name=member.email,
+            icon_url=None,
+            sign_count=0,
+            credential_id=str(webauthn.webauthn._webauthn_b64_decode(mfa.webauthn_id)),
+            public_key=mfa.webauthn_public_key,
+            rp_id=config.get_app().get("app_domain")
+        )
+        webauthn_assertion_response = webauthn.WebAuthnAssertionResponse(
+            webauthn_user,
+            assertion_response=params['assertion_response'],
+            challenge=mfa.webauthn_challenge,
+            origin=config.get_app().get("app_url"),
+            uv_required=False
+        )
+        webauthn_assertion_response.verify()
+        params['status'] = 'success'
+        params['message'] = messages.OK_REGISTERED_MFA
+        return jsonify(params)
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@control_timing_attacks(seconds=2)
+@blueprint.route('/recovery/mfa', methods=['POST'])
+@require_recaptcha(action='recovery_action')
+@prepared_json
+def api_recover_mfa(params):
+    if 'scratch_code' not in params:
+        params['message'] = messages.ERR_INCORRECT_SCRATCH_CODE
+
+    if len(errors) > 0:
+        params['status'] = 'error'
+        params['message'] = "\n".join(errors)
+        return jsonify(params)
+
+    try:
+        member = register(
+            account_id=invitee.account_id,
+            role_id=invitee.role_id,
+            email_addr=invitee.email,
+            verified=True
+        )
+        if not isinstance(member, Member):
+            errors.append(messages.ERR_ACCOUNT_UPDATE)
+
+        invitee.member_id = member.member_id
+        invitee.persist()
+        login_user(member)
+        if request.headers.getlist("X-Forwarded-For"):
+            remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
+        else:
+            remote_addr = request.remote_addr
+        ActivityLog(
+            member_id=member.member_id,
+            action=ActivityLog.ACTION_USER_LOGIN,
+            description=f'{remote_addr}\t{request.user_agent}'
+        ).persist()
+
+    except Exception as err:
+        logger.error(err)
+        params['error'] = str(err)
+        errors.append(messages.ERR_ACCOUNT_UPDATE)
+
+    if len(errors) > 0:
+        params['status'] = 'error'
+        params['message'] = "\n".join(errors)
+    else:
+        params['status'] = 'success'
+        params['message'] = messages.OK_REGISTERED
+
+    del params['password1']
+    del params['password2']
+
+    return jsonify(params)
+
+@control_timing_attacks(seconds=2)
+@blueprint.route('/subscribe', methods=['POST'])
+@require_recaptcha(action='subscribe_action')
+@prepared_json
+def api_subscribe(params):
+    if 'email' not in params or not check_email_rules(params.get('email')):
+        return jsonify(params)
+
+    try:
+        upsert_contact(recipient_email=params.get('email'))
+        send_email(
+            subject="Subscribed to TrivialSec updates",
+            recipient=params.get('email'),
+            template='subscriptions',
+            group='subscriptions',
+            data=dict()
+        )
+        params['status'] = 'success'
+        params['message'] = messages.OK_SUBSCRIBED
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
 
 @blueprint.route('/search/<string:model>', methods=['POST'])
 @login_required
@@ -310,7 +557,7 @@ def api_update_email():
     current_user.confirmation_sent = False
     current_user.confirmation_url = f"/confirmation/{oneway_hash(params.get('email'))}"
     current_user.persist()
-    confirmation_url = f"{config.frontend.get('app_url')}{current_user.confirmation_url}"
+    confirmation_url = f"{config.get_app().get('app_url')}{current_user.confirmation_url}"
     try:
         send_email(
             subject="TrivialSec - email address updated",
@@ -348,16 +595,10 @@ def api_update_email():
 
 @blueprint.route('/invitation', methods=['POST'])
 @login_required
-def api_invitation():
-    params = request.get_json()
-    error = None
-
+@prepared_json
+def api_invitation(params):
     if 'invite_email' not in params or not check_email_rules(params['invite_email']):
-        error = messages.ERR_VALIDATION_EMAIL_RULES
-
-    if error is not None:
-        params['status'] = 'error'
-        params['message'] = error
+        params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
         return jsonify(params)
 
     try:
@@ -373,14 +614,13 @@ def api_invitation():
         invitation.email = params['invite_email']
         invitation.role_id = params['invite_role_id']
         invitation.message = params.get('invite_message', 'Trivial Security monitors public threats and easy attack vectors so you don\'t have to spend your valuable time keeping up-to-date daily.')
-        invitation.confirmation_url = f"/invitation/{oneway_hash(params['invite_email'])}"
+        invitation.confirmation_url = f"/confirmation/{oneway_hash(params['invite_email'])}"
 
         if invitation.exists(['email']) or not invitation.persist():
-            params['status'] = 'error'
             params['message'] = messages.ERR_INVITATION_FAILED
             return jsonify(params)
 
-        params['confirmation_url'] = f"{config.frontend.get('app_url')}{invitation.confirmation_url}"
+        params['confirmation_url'] = f"{config.get_app().get('app_url')}{invitation.confirmation_url}"
         send_email(
             subject=f"Invitation to join TrivialSec organisation {current_user.account.alias}",
             recipient=invitation.email,
@@ -403,16 +643,18 @@ def api_invitation():
 
     except Exception as err:
         logger.exception(err)
-        params['status'] = 'error'
+        if app.debug:
+            params['error'] = str(err)
         params['message'] = messages.ERR_INVITATION_FAILED
-        return jsonify(params)
 
-    params['status'] = 'success'
     return jsonify(params)
 
 @blueprint.route('/account', methods=['POST'])
 @login_required
 def api_account():
+    #TODO use MFA not password to save account information
+    return jsonify({'message': 'not implemented'})
+
     params = request.get_json()
     changes = []
     err = None
@@ -471,6 +713,8 @@ def api_account():
 @blueprint.route('/account-config', methods=['POST'])
 @login_required
 def api_account_config():
+    #TODO use MFA to save account information
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     account_config = AccountConfig(account_id=current_user.account_id)
     account_config.hydrate()
@@ -539,6 +783,8 @@ def api_account_config():
 @blueprint.route('/setup-account', methods=['POST'])
 @login_required
 def api_setup_account():
+    #TODO
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     changes = []
     account_changes = False
@@ -599,6 +845,8 @@ def api_setup_account():
 @blueprint.route('/checkout', methods=['POST'])
 @login_required
 def api_checkout():
+    #TODO
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     plan = Plan(account_id=current_user.account_id)
     plan.hydrate('account_id')
@@ -643,6 +891,8 @@ def api_checkout():
 @blueprint.route('/organisation/member', methods=['POST'])
 @login_required
 def api_organisation_member():
+    #TODO
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     err = None
     responses = []
@@ -660,7 +910,7 @@ def api_organisation_member():
         member.confirmation_sent = False
         member.confirmation_url = f"/confirmation/{oneway_hash(params.get('email'))}"
         member.persist()
-        confirmation_url = f"{config.frontend.get('app_url')}{member.confirmation_url}"
+        confirmation_url = f"{config.get_app().get('app_url')}{member.confirmation_url}"
         try:
             send_email(
                 subject="TrivialSec - email address updated",
@@ -727,6 +977,8 @@ def api_organisation_member():
 @blueprint.route('/archive-project', methods=['POST'])
 @login_required
 def api_archive_project():
+    #TODO
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     project = Project(
         account_id=current_user.account_id,
@@ -757,6 +1009,8 @@ def api_archive_project():
 @blueprint.route('/enable-domain', methods=['POST'])
 @login_required
 def api_enable_domain():
+    #TODO
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     domain = Domain(
         account_id=current_user.account_id,
@@ -782,6 +1036,8 @@ def api_enable_domain():
 @blueprint.route('/disable-domain', methods=['POST'])
 @login_required
 def api_disable_domain():
+    #TODO
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     domain = Domain(
         account_id=current_user.account_id,
@@ -807,6 +1063,8 @@ def api_disable_domain():
 @blueprint.route('/delete-domain', methods=['POST'])
 @login_required
 def api_delete_domain():
+    #TODO
+    return jsonify({'message': 'not implemented'})
     params = request.get_json()
     domain = Domain(
         account_id=current_user.account_id,

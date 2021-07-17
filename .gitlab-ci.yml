@@ -1,86 +1,88 @@
 variables:
-  COMMON_VERSION: 0.4.4
-  APP_NAME: api
-  TAG_ENV: Prod
-  TAG_PURPOSE: Deploy
-  TARGET_GROUP_ARN: arn:aws:elasticloadbalancing:ap-southeast-2:814504268053:targetgroup/trivialsec-prod-api/cca87097c1b72b62
-  AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
-  AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
-  AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
-  BASE_AMI: ami-09f765d333a8ebb4b
-  SUBNET_ID: subnet-8b05e8c3
-  DEFAULT_INSTANCE_TYPE: t3a.medium
-  IAM_INSTANCE_PROFILE: EC2-TrivialSec
-  COST_CENTER: saas
-  PRIV_KEY_NAME: trivialsec-prod
-  SECURITY_GROUP_IDS: sg-04a8dac724adcad3c sg-01bbdeecc61359d59 sg-0652a48752a2da5a8
+  DOCKER_USER: ci
+  COMMON_VERSION: 0.5.2
+  APP_ENV: Prod
+  APP_NAME: trivialsec
+  BUILD_ENV: production
+  AWS_REGION: ap-southeast-2
 
 before_script:
+  - touch .env
+  - make --version
   - aws --version
+  - docker --version
   - pylint --version
   - echo semgrep $(semgrep --version)
-  - pip --version
 
 stages:
-  - test
+  - tests
   - build
   - deploy
-  - teardown
 
-lint:
-  retry: 2
+test:sast:
   tags:
-    - python
-  stage: test
+    - linode
+  stage: tests
   script:
-    - make common
-    - pip install -q -r docker/requirements.txt
-    - make lint
+    - make semgrep-sast-ci
   only:
     refs:
       - merge_request
-      - master
+      - main
+  artifacts:
+    name: sast-results
+    paths:
+      - semgrep-ci.json
 
-build:
-  retry: 2
+test:xss:
   tags:
-    - python
-  stage: build
+    - linode
+  stage: tests
   script:
-    - make package
+    - make semgrep-xss-ci
   only:
     refs:
       - merge_request
+      - main
+  artifacts:
+    name: sast-results
+    paths:
+      - semgrep-flask-xss.json
 
-build-upload:
-  retry: 2
+test:lint:
   tags:
-    - python
-  stage: build
+    - linode
+  stage: tests
   script:
-    - make package-upload
+    - make pylint-ci
   only:
     refs:
-      - master
+      - merge_request
+      - main
+  artifacts:
+    name: lint-results
+    paths:
+      - pylint.json
 
-deploy:
-  retry: 2
+build:docker:
   tags:
-    - python
+    - linode
+  stage: build
+  script:
+    - make docker-login
+    - make build-ci
+  only:
+    refs:
+      - merge_request
+      - main
+
+push:docker:
+  tags:
+    - linode
   stage: deploy
   script:
-    - export NUM_INSTANCES=$(aws elbv2 describe-target-health --target-group-arn ${TARGET_GROUP_ARN} --query 'TargetHealthDescriptions[]' | jq '. | length')
-    - echo NUM_INSTANCES ${NUM_INSTANCES}
-    - ./deploy/launch.sh
+    - make docker-login
+    - make push-ci
   only:
     refs:
-      - master
-
-teardown:
-  retry: 2
-  stage: teardown
-  script:
-    - ./deploy/teardown.sh
-  only:
-    refs:
-      - master
+      - main
