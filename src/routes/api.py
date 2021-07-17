@@ -195,6 +195,9 @@ def api_authorization_webauthn(params):
             remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
         else:
             remote_addr = request.remote_addr
+
+        scratch = oneway_hash(f'{datetime.now()}{member.member_id}')
+        member.scratch_code = f'{scratch[:4]}-{scratch[4:10]}-{scratch[10:18]}-{scratch[18:24]}'.upper()
         member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
         member.persist()
         magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
@@ -211,8 +214,11 @@ def api_authorization_webauthn(params):
             action=ActivityLog.ACTION_USER_LOGIN,
             description=f'{remote_addr}\t{request.user_agent}'
         ).persist()
-        params['status'] = 'success'
-        params['message'] = messages.OK_REGISTERED_MFA + '\n' + messages.OK_MAGIC_LINK_SENT
+        params['status']        = 'success'
+        params['scratch_code']  = member.scratch_code
+        params['message']       = messages.OK_REGISTERED_MFA
+        params['description']   = messages.OK_MAGIC_LINK_SENT
+
         return jsonify(params)
 
     except Exception as err:
@@ -227,51 +233,53 @@ def api_authorization_webauthn(params):
 @require_recaptcha(action='recovery_action')
 @prepared_json
 def api_recover_mfa(params):
+    #TODO use MFA not password to save account information
+    return jsonify({'message': 'not implemented'})
     if 'scratch_code' not in params:
         params['message'] = messages.ERR_INCORRECT_SCRATCH_CODE
 
-    # if len(errors) > 0:
-    #     params['status'] = 'error'
-    #     params['message'] = "\n".join(errors)
-    #     return jsonify(params)
+    if len(errors) > 0:
+        params['status'] = 'error'
+        params['message'] = "\n".join(errors)
+        return jsonify(params)
 
-    # try:
-    #     member = register(
-    #         account_id=invitee.account_id,
-    #         role_id=invitee.role_id,
-    #         email_addr=invitee.email,
-    #         verified=True
-    #     )
-    #     if not isinstance(member, Member):
-    #         errors.append(messages.ERR_ACCOUNT_UPDATE)
+    try:
+        member = register(
+            account_id=invitee.account_id,
+            role_id=invitee.role_id,
+            email_addr=invitee.email,
+            verified=True
+        )
+        if not isinstance(member, Member):
+            errors.append(messages.ERR_ACCOUNT_UPDATE)
 
-    #     invitee.member_id = member.member_id
-    #     invitee.persist()
-    #     login_user(member)
-    #     if request.headers.getlist("X-Forwarded-For"):
-    #         remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
-    #     else:
-    #         remote_addr = request.remote_addr
-    #     ActivityLog(
-    #         member_id=member.member_id,
-    #         action=ActivityLog.ACTION_USER_LOGIN,
-    #         description=f'{remote_addr}\t{request.user_agent}'
-    #     ).persist()
+        invitee.member_id = member.member_id
+        invitee.persist()
+        login_user(member)
+        if request.headers.getlist("X-Forwarded-For"):
+            remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
+        else:
+            remote_addr = request.remote_addr
+        ActivityLog(
+            member_id=member.member_id,
+            action=ActivityLog.ACTION_USER_LOGIN,
+            description=f'{remote_addr}\t{request.user_agent}'
+        ).persist()
 
-    # except Exception as err:
-    #     logger.error(err)
-    #     params['error'] = str(err)
-    #     errors.append(messages.ERR_ACCOUNT_UPDATE)
+    except Exception as err:
+        logger.error(err)
+        params['error'] = str(err)
+        errors.append(messages.ERR_ACCOUNT_UPDATE)
 
-    # if len(errors) > 0:
-    #     params['status'] = 'error'
-    #     params['message'] = "\n".join(errors)
-    # else:
-    #     params['status'] = 'success'
-    #     params['message'] = messages.OK_REGISTERED
+    if len(errors) > 0:
+        params['status'] = 'error'
+        params['message'] = "\n".join(errors)
+    else:
+        params['status'] = 'success'
+        params['message'] = messages.OK_REGISTERED
 
-    # del params['password1']
-    # del params['password2']
+    del params['password1']
+    del params['password2']
 
     return jsonify(params)
 
@@ -553,6 +561,8 @@ def api_create_project():
 @blueprint.route('/update-email', methods=['POST'])
 @login_required
 def api_update_email():
+    #TODO use MFA not password to save account information
+    return jsonify({'message': 'not implemented'})
     errors = []
     params = request.get_json()
     params['status'] = 'info'
