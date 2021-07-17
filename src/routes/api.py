@@ -1,5 +1,5 @@
 from datetime import datetime
-import json
+from random import random
 from flask import Blueprint, jsonify, request, abort, current_app as app
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
@@ -190,8 +190,29 @@ def api_authorization_webauthn(params):
             uv_required=False
         )
         webauthn_assertion_response.verify()
+
+        if request.headers.getlist("X-Forwarded-For"):
+            remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
+        else:
+            remote_addr = request.remote_addr
+        member.confirmation_url = oneway_hash(f'{random()}{remote_addr}')
+        member.persist()
+        magic_link = f"{config.get_app().get('app_url')}/login/{member.confirmation_url}"
+        send_email(
+            subject="TrivialSec Magic Link",
+            recipient=member.email,
+            template='magic-link',
+            data={
+                "magic_link": magic_link
+            }
+        )
+        ActivityLog(
+            member_id=member.member_id,
+            action=ActivityLog.ACTION_USER_LOGIN,
+            description=f'{remote_addr}\t{request.user_agent}'
+        ).persist()
         params['status'] = 'success'
-        params['message'] = messages.OK_REGISTERED_MFA
+        params['message'] = messages.OK_REGISTERED_MFA + '\n' + messages.OK_MAGIC_LINK_SENT
         return jsonify(params)
 
     except Exception as err:
@@ -209,48 +230,48 @@ def api_recover_mfa(params):
     if 'scratch_code' not in params:
         params['message'] = messages.ERR_INCORRECT_SCRATCH_CODE
 
-    if len(errors) > 0:
-        params['status'] = 'error'
-        params['message'] = "\n".join(errors)
-        return jsonify(params)
+    # if len(errors) > 0:
+    #     params['status'] = 'error'
+    #     params['message'] = "\n".join(errors)
+    #     return jsonify(params)
 
-    try:
-        member = register(
-            account_id=invitee.account_id,
-            role_id=invitee.role_id,
-            email_addr=invitee.email,
-            verified=True
-        )
-        if not isinstance(member, Member):
-            errors.append(messages.ERR_ACCOUNT_UPDATE)
+    # try:
+    #     member = register(
+    #         account_id=invitee.account_id,
+    #         role_id=invitee.role_id,
+    #         email_addr=invitee.email,
+    #         verified=True
+    #     )
+    #     if not isinstance(member, Member):
+    #         errors.append(messages.ERR_ACCOUNT_UPDATE)
 
-        invitee.member_id = member.member_id
-        invitee.persist()
-        login_user(member)
-        if request.headers.getlist("X-Forwarded-For"):
-            remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
-        else:
-            remote_addr = request.remote_addr
-        ActivityLog(
-            member_id=member.member_id,
-            action=ActivityLog.ACTION_USER_LOGIN,
-            description=f'{remote_addr}\t{request.user_agent}'
-        ).persist()
+    #     invitee.member_id = member.member_id
+    #     invitee.persist()
+    #     login_user(member)
+    #     if request.headers.getlist("X-Forwarded-For"):
+    #         remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
+    #     else:
+    #         remote_addr = request.remote_addr
+    #     ActivityLog(
+    #         member_id=member.member_id,
+    #         action=ActivityLog.ACTION_USER_LOGIN,
+    #         description=f'{remote_addr}\t{request.user_agent}'
+    #     ).persist()
 
-    except Exception as err:
-        logger.error(err)
-        params['error'] = str(err)
-        errors.append(messages.ERR_ACCOUNT_UPDATE)
+    # except Exception as err:
+    #     logger.error(err)
+    #     params['error'] = str(err)
+    #     errors.append(messages.ERR_ACCOUNT_UPDATE)
 
-    if len(errors) > 0:
-        params['status'] = 'error'
-        params['message'] = "\n".join(errors)
-    else:
-        params['status'] = 'success'
-        params['message'] = messages.OK_REGISTERED
+    # if len(errors) > 0:
+    #     params['status'] = 'error'
+    #     params['message'] = "\n".join(errors)
+    # else:
+    #     params['status'] = 'success'
+    #     params['message'] = messages.OK_REGISTERED
 
-    del params['password1']
-    del params['password2']
+    # del params['password1']
+    # del params['password2']
 
     return jsonify(params)
 
@@ -1086,3 +1107,58 @@ def api_delete_domain():
         'status': 'success',
         'message': messages.OK_DOMAIN_DELETE
     })
+
+@control_timing_attacks(seconds=2)
+@blueprint.route('/magic-link', methods=['POST'])
+@require_recaptcha(action='public_action')
+@prepared_json
+def api_login_magic_link(params):
+    email_addr = params.get('email')
+    member = Member(email=email_addr)
+    member.hydrate('email')
+    if member.member_id is None:
+        logger.debug(f'No user for {email_addr}')
+        params['message'] = messages.ERR_LOGIN_FAILED
+        return jsonify(params)
+
+    if not member.verified:
+        logger.debug(f'unverified user {member.member_id}')
+        params['message'] = messages.ERR_MEMBER_VERIFICATION
+        return jsonify(params)
+
+    res = check_email_rules(email_addr)
+    if not res:
+        params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
+        return jsonify(params)
+
+    account = Account(account_id=member.account_id)
+    if not account.hydrate():
+        logger.debug(f'unverified user {member.member_id}')
+        params['message'] = messages.ERR_LOGIN_FAILED
+        return jsonify(params)
+
+    if request.headers.getlist("X-Forwarded-For"):
+        remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
+    else:
+        remote_addr = request.remote_addr
+
+    member.confirmation_url = oneway_hash(f'{random()}{remote_addr}')
+    member.persist()
+    magic_link = f"{config.get_app().get('app_url')}/login/{member.confirmation_url}"
+    send_email(
+        subject="TrivialSec Magic Link",
+        recipient=member.email,
+        template='magic-link',
+        data={
+            "magic_link": magic_link
+        }
+    )
+    ActivityLog(
+        member_id=member.member_id,
+        action=ActivityLog.ACTION_USER_LOGIN,
+        description=f'{remote_addr}\t{request.user_agent}'
+    ).persist()
+    params['status'] = 'success'
+    params['message'] = messages.OK_MAGIC_LINK_SENT
+
+    return jsonify(params)
