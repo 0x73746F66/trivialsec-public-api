@@ -195,9 +195,9 @@ def api_authorization_webauthn(params):
             remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
         else:
             remote_addr = request.remote_addr
-        member.confirmation_url = oneway_hash(f'{random()}{remote_addr}')
+        member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
         member.persist()
-        magic_link = f"{config.get_app().get('app_url')}/login/{member.confirmation_url}"
+        magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
         send_email(
             subject="TrivialSec Magic Link",
             recipient=member.email,
@@ -1142,9 +1142,9 @@ def api_login_magic_link(params):
     else:
         remote_addr = request.remote_addr
 
-    member.confirmation_url = oneway_hash(f'{random()}{remote_addr}')
+    member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
     member.persist()
-    magic_link = f"{config.get_app().get('app_url')}/login/{member.confirmation_url}"
+    magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
     send_email(
         subject="TrivialSec Magic Link",
         recipient=member.email,
