@@ -45,7 +45,7 @@ test:xss:
       - merge_request
       - main
   artifacts:
-    name: sast-results
+    name: xss-results
     paths:
       - semgrep-flask-xss.json
 
