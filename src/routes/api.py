@@ -109,12 +109,12 @@ def api_confirmation_webauthn(params):
         member.hydrate()
         mfa = MemberMfa()
         mfa.member_id = member.member_id
-        mfa.type = 'webauthn'
-        if mfa.exists(['member_id', 'type']):
-            mfa.hydrate(['member_id', 'type'])
-        else:
-            mfa.created_at = datetime.now()
         mfa.webauthn_id = params.get("webauthn_id")
+        if mfa.exists(['member_id', 'webauthn_id']):
+            mfa.hydrate()
+        else:
+            mfa.type = 'webauthn'
+            mfa.created_at = datetime.now()
         mfa.webauthn_challenge = params.get("webauthn_challenge")
         mfa.webauthn_public_key = params.get("webauthn_public_key")
         mfa.active = False
@@ -131,7 +131,6 @@ def api_confirmation_webauthn(params):
         mfa.persist()
         params['status'] = 'success'
         params['message'] = messages.OK_REGISTERED_MFA
-        return jsonify(params)
 
     except Exception as err:
         logger.exception(err)
@@ -183,7 +182,6 @@ def api_registration_totp(params):
         params['totp_code'] = totp_code
         params['status'] = 'success'
         params['message'] = messages.INFO_TOTP_GENERATION
-        return jsonify(params)
 
     except Exception as err:
         logger.exception(err)
@@ -206,8 +204,9 @@ def api_authorization_webauthn(params):
         member.hydrate()
         mfa = MemberMfa()
         mfa.member_id = member.member_id
-        mfa.type = 'webauthn'
-        if not mfa.hydrate(['member_id', 'type']):
+        mfa.webauthn_id = params['assertion_response'].get('rawId')
+        mfa.exists(['member_id', 'webauthn_id'])
+        if not mfa.hydrate():
             params['message'] = messages.ERR_ORG_MEMBER
             return jsonify(params)
 
@@ -256,11 +255,10 @@ def api_authorization_webauthn(params):
         mfa.active = True
         mfa.persist()
         params['status']        = 'success'
+        params['device_id']     = mfa.mfa_id
         params['scratch_code']  = member.scratch_code
         params['message']       = messages.OK_REGISTERED_MFA
         params['description']   = messages.OK_MAGIC_LINK_SENT
-
-        return jsonify(params)
 
     except Exception as err:
         logger.exception(err)
@@ -323,7 +321,31 @@ def api_authorization_totp(params):
         params['message']       = messages.OK_REGISTERED_MFA
         params['description']   = messages.OK_MAGIC_LINK_SENT
 
-        return jsonify(params)
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/webauthn/device-name', methods=['POST'])
+@require_recaptcha(action='name_device_action')
+@prepared_json
+def api_name_device(params):
+    try:
+        mfa = MemberMfa()
+        mfa.mfa_id = params.get("device_id")
+        mfa.hydrate()
+        if not mfa.member_id:
+            return jsonify(params)
+
+        mfa.name = params.get("device_name")
+        if not mfa.name:
+            return jsonify(params)
+
+        mfa.persist()
+        params['status'] = 'success'
+        params['message'] = messages.OK_REGISTERED_MFA
 
     except Exception as err:
         logger.exception(err)
