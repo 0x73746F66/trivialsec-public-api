@@ -1,9 +1,14 @@
+from io import BytesIO
 from datetime import datetime
 from random import random
+from base64 import b64encode
 from flask import Blueprint, jsonify, request, abort, current_app as app
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
 import webauthn
+from pyotp import TOTP, random_base32
+from qrcode import QRCode
+from qrcode.constants import ERROR_CORRECT_L
 
 from trivialsec.decorators import control_timing_attacks, require_recaptcha, prepared_json
 from trivialsec.helpers import messages, oneway_hash, check_domain_rules, check_email_rules, is_valid_ipv4_address, is_valid_ipv6_address
@@ -107,10 +112,12 @@ def api_confirmation_webauthn(params):
         mfa.type = 'webauthn'
         if mfa.exists(['member_id', 'type']):
             mfa.hydrate(['member_id', 'type'])
-
+        else:
+            mfa.created_at = datetime.now()
         mfa.webauthn_id = params.get("webauthn_id")
         mfa.webauthn_challenge = params.get("webauthn_challenge")
         mfa.webauthn_public_key = params.get("webauthn_public_key")
+        mfa.active = False
         webauthn_registration_response = webauthn.WebAuthnRegistrationResponse(
             rp_id=config.get_app().get("app_domain"),
             origin=config.get_app().get("app_url"),
@@ -136,15 +143,47 @@ def api_confirmation_webauthn(params):
 @blueprint.route('/registration/totp', methods=['POST'])
 @require_recaptcha(action='confirmation_action')
 @prepared_json
-def api_confirmation_totp(params):
+def api_registration_totp(params):
     try:
         member = Member()
         member.confirmation_url = f'/confirmation/{params.get("confirmation_hash")}'
-        if member.exists(['confirmation_url']):
-            member.hydrate()
-            params['status'] = 'success'
-            params['message'] = messages.OK_REGISTERED_MFA
+        if not member.exists(['confirmation_url']):
+            params['message'] = messages.ERR_ORG_MEMBER
             return jsonify(params)
+
+        member.hydrate()
+        totp_code = random_base32()
+        totp = TOTP(totp_code)
+        mfa = MemberMfa()
+        mfa.member_id = member.member_id
+        mfa.type = 'totp'
+        if mfa.exists(['member_id', 'type']):
+            mfa.hydrate(['member_id', 'type'])
+        else:
+            mfa.created_at = datetime.now()
+
+        mfa.totp_code = totp_code
+        mfa.active = False
+        mfa.persist()
+        provisioning_uri = totp.provisioning_uri(name=member.email, issuer_name='Trivial Security')
+        qr_code = QRCode(
+            version=5,
+            error_correction=ERROR_CORRECT_L,
+            box_size=8,
+            border=4
+        )
+        qr_code.add_data(provisioning_uri)
+        qr_code.make(fit=True)
+        img = qr_code.make_image()
+        with BytesIO() as buf:
+            img.save(buf, 'png')
+            res = buf.getvalue()
+            params['qr_code'] = b64encode(res).decode()
+
+        params['totp_code'] = totp_code
+        params['status'] = 'success'
+        params['message'] = messages.INFO_TOTP_GENERATION
+        return jsonify(params)
 
     except Exception as err:
         logger.exception(err)
@@ -214,6 +253,71 @@ def api_authorization_webauthn(params):
             action=ActivityLog.ACTION_USER_LOGIN,
             description=f'{remote_addr}\t{request.user_agent}'
         ).persist()
+        mfa.active = True
+        mfa.persist()
+        params['status']        = 'success'
+        params['scratch_code']  = member.scratch_code
+        params['message']       = messages.OK_REGISTERED_MFA
+        params['description']   = messages.OK_MAGIC_LINK_SENT
+
+        return jsonify(params)
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/authorization/totp', methods=['POST'])
+@require_recaptcha(action='authorization_action')
+@prepared_json
+def api_authorization_totp(params):
+    try:
+        member = Member()
+        member.confirmation_url = f'/confirmation/{params.get("confirmation_hash")}'
+        if not member.exists(['confirmation_url']):
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        member.hydrate()
+        mfa = MemberMfa()
+        mfa.member_id = member.member_id
+        mfa.type = 'totp'
+        if not mfa.hydrate(['member_id', 'type']):
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        totp = TOTP(mfa.totp_code)
+        if not totp.verify(int(params.get("totp_code"))):
+            params['message'] = messages.ERR_VALIDATION_TOTP
+            return jsonify(params)
+
+        if request.headers.getlist("X-Forwarded-For"):
+            remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
+        else:
+            remote_addr = request.remote_addr
+
+        scratch = oneway_hash(f'{datetime.now()}{member.member_id}')
+        member.scratch_code = f'{scratch[:4]}-{scratch[4:10]}-{scratch[10:18]}-{scratch[18:24]}'.upper()
+        member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
+        member.persist()
+        magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
+        send_email(
+            subject="TrivialSec Magic Link",
+            recipient=member.email,
+            template='magic-link',
+            data={
+                "magic_link": magic_link
+            }
+        )
+        ActivityLog(
+            member_id=member.member_id,
+            action=ActivityLog.ACTION_USER_LOGIN,
+            description=f'{remote_addr}\t{request.user_agent}'
+        ).persist()
+        mfa.active = True
+        mfa.persist()
         params['status']        = 'success'
         params['scratch_code']  = member.scratch_code
         params['message']       = messages.OK_REGISTERED_MFA
