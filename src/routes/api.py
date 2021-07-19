@@ -16,7 +16,8 @@ from trivialsec.helpers.config import config
 from trivialsec.helpers.payments import checkout, create_customer
 from trivialsec.helpers.sendgrid import send_email, upsert_contact
 from trivialsec.helpers.transport import Metadata
-from trivialsec.models.domain import Domain, Domains, DomainStat
+from trivialsec.models.domain_stat import DomainStat
+from trivialsec.models.domain import Domain, Domains
 from trivialsec.models.project import Project
 from trivialsec.models.service_type import ServiceType
 from trivialsec.models.activity_log import ActivityLog
@@ -24,7 +25,8 @@ from trivialsec.models.known_ip import KnownIp
 from trivialsec.models.plan import Plan
 from trivialsec.models.member import Member
 from trivialsec.models.member_mfa import MemberMfa
-from trivialsec.models.account import Account, AccountConfig
+from trivialsec.models.account import Account
+from trivialsec.models.account_config import AccountConfig
 from trivialsec.models.invitation import Invitation
 from trivialsec.models.role import Role, Roles
 from trivialsec.services.accounts import register
@@ -35,6 +37,7 @@ from trivialsec.services.domains import handle_add_domain
 logger = logging.getLogger(__name__)
 blueprint = Blueprint('api', __name__)
 
+@control_timing_attacks(seconds=2)
 @blueprint.route('/test', methods=['GET', 'POST'])
 @login_required
 @prepared_json
@@ -95,6 +98,7 @@ def api_register(params):
 
     return jsonify(params)
 
+@control_timing_attacks(seconds=2)
 @blueprint.route('/registration/webauthn', methods=['POST'])
 @require_recaptcha(action='confirmation_action')
 @prepared_json
@@ -139,6 +143,7 @@ def api_confirmation_webauthn(params):
 
     return jsonify(params)
 
+@control_timing_attacks(seconds=2)
 @blueprint.route('/registration/totp', methods=['POST'])
 @require_recaptcha(action='confirmation_action')
 @prepared_json
@@ -190,6 +195,7 @@ def api_registration_totp(params):
 
     return jsonify(params)
 
+@control_timing_attacks(seconds=2)
 @blueprint.route('/authorization/webauthn', methods=['POST'])
 @require_recaptcha(action='authorization_action')
 @prepared_json
@@ -267,6 +273,7 @@ def api_authorization_webauthn(params):
 
     return jsonify(params)
 
+@control_timing_attacks(seconds=2)
 @blueprint.route('/authorization/totp', methods=['POST'])
 @require_recaptcha(action='authorization_action')
 @prepared_json
@@ -328,6 +335,7 @@ def api_authorization_totp(params):
 
     return jsonify(params)
 
+@control_timing_attacks(seconds=2)
 @blueprint.route('/webauthn/device-name', methods=['POST'])
 @require_recaptcha(action='name_device_action')
 @prepared_json

@@ -4,7 +4,7 @@ from trivialsec.models.feed import Feed
 from trivialsec.models.member import Member
 from trivialsec.models.activity_log import ActivityLog
 from trivialsec.models.key_value import KeyValue
-from trivialsec.models.finding import FindingDetail
+from trivialsec.models.finding_detail import FindingDetail
 
 
 def handle_upsert_feeds(params: dict, member: Member) -> Feed:
