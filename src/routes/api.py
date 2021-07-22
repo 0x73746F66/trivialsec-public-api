@@ -400,8 +400,7 @@ def api_recover_scratch(params):
             description=member.scratch_code
         ).persist()
         params['status'] = 'success'
-        params['message'] = messages.OK_REQUEST_RECOVERY
-        # params['message'] = messages.OK_RECOVERY_EMAIL
+        params['message'] = messages.OK_RECOVERY_EMAIL
 
     except Exception as err:
         logger.exception(err)
