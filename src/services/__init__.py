@@ -7,7 +7,7 @@ from trivialsec.models.key_value import KeyValue
 from trivialsec.models.finding_detail import FindingDetail
 
 
-def handle_upsert_feeds(params: dict, member: Member) -> Feed:
+def handle_upsert_feeds(params :dict, member: Member) -> Feed:
     feed = Feed(feed_id=params.get('feed_id'))
     feed.name = params.get('name')
     feed.description = params.get('description')
@@ -29,7 +29,7 @@ def handle_upsert_feeds(params: dict, member: Member) -> Feed:
 
     return None
 
-def handle_upsert_keyvalues(params: dict, member: Member) -> KeyValue:
+def handle_upsert_keyvalues(params :dict, member: Member) -> KeyValue:
     keyvalue = KeyValue(key_value_id=params.get('key_value_id'))
     keyvalue.type = params.get('type')
     keyvalue.key = params.get('key')
@@ -43,7 +43,7 @@ def handle_upsert_keyvalues(params: dict, member: Member) -> KeyValue:
 
     return None
 
-def handle_update_recommendations_review(params: dict, member: Member) -> FindingDetail:
+def handle_update_recommendations_review(params :dict, member: Member) -> FindingDetail:
     review = FindingDetail(finding_detail_id=params.get('finding_detail_id'))
     review.hydrate()
     review.title = params.get('title')

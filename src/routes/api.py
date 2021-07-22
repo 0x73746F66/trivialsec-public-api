@@ -23,7 +23,7 @@ from trivialsec.models.service_type import ServiceType
 from trivialsec.models.activity_log import ActivityLog
 from trivialsec.models.known_ip import KnownIp
 from trivialsec.models.plan import Plan
-from trivialsec.models.member import Member
+from trivialsec.models.member import Member, Members
 from trivialsec.models.member_mfa import MemberMfa
 from trivialsec.models.account import Account
 from trivialsec.models.account_config import AccountConfig
@@ -82,7 +82,6 @@ def api_register(params):
                 recipient=member.email,
                 template='registrations',
                 data={
-                    "invitation_message": "Please click the Activation link below, or copy and paste it into a browser if you prefer.",
                     "activation_url": confirmation_url
                 }
             )
@@ -240,15 +239,16 @@ def api_authorization_webauthn(params):
         else:
             remote_addr = request.remote_addr
 
-        scratch = oneway_hash(f'{datetime.now()}{member.member_id}')
+        scratch = oneway_hash(f'{random()}{member.member_id}')
         member.scratch_code = f'{scratch[:4]}-{scratch[4:10]}-{scratch[10:18]}-{scratch[18:24]}'.upper()
         member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
         member.persist()
         magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
+        upsert_contact(recipient_email=member.email, list_name='members')
         send_email(
             subject="TrivialSec Magic Link",
             recipient=member.email,
-            template='magic-link',
+            template='magic_link',
             data={
                 "magic_link": magic_link
             }
@@ -303,15 +303,16 @@ def api_authorization_totp(params):
         else:
             remote_addr = request.remote_addr
 
-        scratch = oneway_hash(f'{datetime.now()}{member.member_id}')
+        scratch = oneway_hash(f'{random()}{member.member_id}')
         member.scratch_code = f'{scratch[:4]}-{scratch[4:10]}-{scratch[10:18]}-{scratch[18:24]}'.upper()
         member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
         member.persist()
         magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
+        upsert_contact(recipient_email=member.email, list_name='members')
         send_email(
             subject="TrivialSec Magic Link",
             recipient=member.email,
-            template='magic-link',
+            template='magic_link',
             data={
                 "magic_link": magic_link
             }
@@ -363,57 +364,91 @@ def api_name_device(params):
     return jsonify(params)
 
 @control_timing_attacks(seconds=2)
-@blueprint.route('/recovery/mfa', methods=['POST'])
+@blueprint.route('/recovery/scratch', methods=['POST'])
 @require_recaptcha(action='recovery_action')
 @prepared_json
-def api_recover_mfa(params):
-    #TODO use MFA not password to save account information
-    return jsonify({'message': 'not implemented'})
-    if 'scratch_code' not in params:
-        params['message'] = messages.ERR_INCORRECT_SCRATCH_CODE
+def api_recover_scratch(params):
+    return jsonify({'status': 'success', 'message': 'not implemented'})
 
-    if len(errors) > 0:
-        params['status'] = 'error'
-        params['message'] = "\n".join(errors)
+@control_timing_attacks(seconds=2)
+@blueprint.route('/recovery/email', methods=['POST'])
+@require_recaptcha(action='recovery_action')
+@prepared_json
+def api_recover_email(params):
+    if not check_email_rules(params.get('old_email')) or not check_email_rules(params.get('new_email')):
+        params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
         return jsonify(params)
 
     try:
-        member = register(
-            account_id=invitee.account_id,
-            role_id=invitee.role_id,
-            email_addr=invitee.email,
-            verified=True
-        )
-        if not isinstance(member, Member):
-            errors.append(messages.ERR_ACCOUNT_UPDATE)
+        check_member = Member()
+        check_member.email = params.get('new_email')
+        if check_member.exists(['email']):
+            logger.info(f"new_email {params.get('new_email')} exists")
+            params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
+            return jsonify(params)
 
-        invitee.member_id = member.member_id
-        invitee.persist()
-        login_user(member)
-        if request.headers.getlist("X-Forwarded-For"):
-            remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
-        else:
-            remote_addr = request.remote_addr
+        member = Member()
+        member.email = params.get('old_email')
+        if not member.exists(['email']) or not member.member_id:
+            logger.info(f"old_email {params.get('old_email')} not found")
+            params['message'] = messages.ERR_EMAIL_NOT_SENT
+            return jsonify(params)
+
+        member.hydrate()
+        params['owners'] = []
+        for org_member in Members().find_by_role_id(role_id=Role.ROLE_OWNER_ID, account_id=member.account_id):
+            if org_member.email == params.get('new_email') or org_member.email == params.get('old_email'):
+                continue
+            params['owners'].append(org_member.email)
+
+        if len(params['owners']) == 0:
+            logger.info("No owners available")
+            params['message'] = messages.ERR_OWNER_RECOVERY
+            return jsonify(params)
+
+        invitation = Invitation()
+        invitation.email = params.get('new_email')
+        if invitation.exists(['email']):
+            invitation.hydrate()
+        if invitation.account_id != member.account_id:
+            invitation.invitation_id = None
+            invitation.account_id = member.account_id
+
+        invitation.role_id = Role.ROLE_RO_ID
+        confirmation_hash = oneway_hash(f'{random()}{member.account_id}')
+        invitation.confirmation_url = f"/confirmation/{confirmation_hash}"
+        invitation.exists(['confirmation_url'])
+        invitation.persist()
+
+        account = Account()
+        account.account_id = member.account_id
+        account.hydrate()
+        for owner_email in params['owners']:
+            send_email(
+                subject="Trivial Security - User requested account recovery",
+                recipient=owner_email,
+                template='recovery_request',
+                data={
+                    "org": account.alias,
+                    "new_email": params.get('new_email'),
+                    "old_email": params.get('old_email'),
+                    "accept_url": f"{config.get_app().get('app_url')}/invitation-request/approve/{confirmation_hash}",
+                    "deny_url": f"{config.get_app().get('app_url')}/invitation-request/deny/{confirmation_hash}"
+                }
+            )
+
         ActivityLog(
             member_id=member.member_id,
-            action=ActivityLog.ACTION_USER_LOGIN,
-            description=f'{remote_addr}\t{request.user_agent}'
+            action=ActivityLog.ACTION_USER_RECOVERY_REQUEST,
+            description=f"{params.get('old_email')} requested recovery to: {params.get('new_email')}"
         ).persist()
+        params['status'] = 'success'
+        params['message'] = messages.OK_REQUEST_RECOVERY
 
     except Exception as err:
-        logger.error(err)
-        params['error'] = str(err)
-        errors.append(messages.ERR_ACCOUNT_UPDATE)
-
-    if len(errors) > 0:
-        params['status'] = 'error'
-        params['message'] = "\n".join(errors)
-    else:
-        params['status'] = 'success'
-        params['message'] = messages.OK_REGISTERED
-
-    del params['password1']
-    del params['password2']
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
 
     return jsonify(params)
 
@@ -720,7 +755,7 @@ def api_update_email():
     current_user.email = params.get('email')
     current_user.verified = False
     current_user.confirmation_sent = False
-    current_user.confirmation_url = f"/confirmation/{oneway_hash(params.get('email'))}"
+    current_user.confirmation_url = f"/confirmation/{oneway_hash(random())}"
     current_user.persist()
     confirmation_url = f"{config.get_app().get('app_url')}{current_user.confirmation_url}"
     try:
@@ -778,8 +813,8 @@ def api_invitation(params):
         invitation.invited_by_member_id = current_user.member_id
         invitation.email = params['invite_email']
         invitation.role_id = params['invite_role_id']
-        invitation.message = params.get('invite_message', 'Trivial Security monitors public threats and easy attack vectors so you don\'t have to spend your valuable time keeping up-to-date daily.')
-        invitation.confirmation_url = f"/confirmation/{oneway_hash(params['invite_email'])}"
+        invitation.message = params.get('invite_message', Invitation.INVITATION_MESSAGE)
+        invitation.confirmation_url = f"/confirmation/{oneway_hash(random())}"
 
         if invitation.exists(['email']) or not invitation.persist():
             params['message'] = messages.ERR_INVITATION_FAILED
@@ -1073,7 +1108,7 @@ def api_organisation_member():
         member.email = params.get('email')
         member.verified = False
         member.confirmation_sent = False
-        member.confirmation_url = f"/confirmation/{oneway_hash(params.get('email'))}"
+        member.confirmation_url = f"/confirmation/{oneway_hash(random())}"
         member.persist()
         confirmation_url = f"{config.get_app().get('app_url')}{member.confirmation_url}"
         try:
@@ -1292,7 +1327,7 @@ def api_login_magic_link(params):
     send_email(
         subject="TrivialSec Magic Link",
         recipient=member.email,
-        template='magic-link',
+        template='magic_link',
         data={
             "magic_link": magic_link
         }
