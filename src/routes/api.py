@@ -368,7 +368,47 @@ def api_name_device(params):
 @require_recaptcha(action='recovery_action')
 @prepared_json
 def api_recover_scratch(params):
-    return jsonify({'status': 'success', 'message': 'not implemented'})
+    if params.get('scratch_code') is None:
+        params['message'] = messages.ERR_EMAIL_NOT_SENT
+        return jsonify(params)
+
+    try:
+        member = Member()
+        member.scratch_code = params.get('scratch_code')
+        if not member.exists(['scratch_code']) or not member.member_id:
+            logger.info(f"scratch_code {params.get('scratch_code')} not found")
+            params['message'] = messages.ERR_EMAIL_NOT_SENT
+            return jsonify(params)
+
+        member.hydrate()
+        confirmation_hash = oneway_hash(f'{random()}{member.account_id}')
+        member.confirmation_url = f"/confirmation/{confirmation_hash}"
+        member.persist()
+        send_email(
+            subject="TrivialSec - Account Recovery",
+            recipient=member.email,
+            template='account_recovery',
+            data={
+                "activation_url": f"{config.get_app().get('app_url')}{member.confirmation_url}"
+            }
+        )
+        member.confirmation_sent = True
+        member.persist()
+        ActivityLog(
+            member_id=member.member_id,
+            action=ActivityLog.ACTION_RECOVERY_CODE_USED,
+            description=member.scratch_code
+        ).persist()
+        params['status'] = 'success'
+        params['message'] = messages.OK_REQUEST_RECOVERY
+        # params['message'] = messages.OK_RECOVERY_EMAIL
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
 
 @control_timing_attacks(seconds=2)
 @blueprint.route('/recovery/email', methods=['POST'])
