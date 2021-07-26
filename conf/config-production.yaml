@@ -18,12 +18,18 @@ app:
   backend:
     socket_scheme: "wss://"
     socket_domain: ws.trivialsec.com
-  cve:
-    url: http://search:5180
   nameservers:
     - 169.254.169.253
   nmap:
     ports: 20-23,25,53,57,67-69,80,81,82,107-113,115,118-119,135,137-139,143,153,156,170,177,179,194,209,213,218,220,300,311,366,369-371,383,384,387,389,399,427,433,434,443-445,464,465,475,491,514,515,517,518,520,521,524,530-533,540,546-548,556,560,561,563-585,587,591,593,601,604,623,625,631,635,636,639,641,646-648,653-655,657,660,666,674,688,690,691,706,711,712,749-754,760,782,783,808,832,843,847,848,873,953-61000
+  public_endpoints:
+    - /confirmation
+    - /verify
+    - /login
+    - /logout
+    - /recovery
+  require_authz:
+    - /account/update-billing-email
 
 redis:
   host: master.trivialsec-prod-redis.4kjmta.apse2.cache.amazonaws.com

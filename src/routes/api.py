@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from io import BytesIO
 from datetime import datetime
 from random import random
@@ -888,66 +890,50 @@ def api_invitation(params):
 
     return jsonify(params)
 
-@blueprint.route('/account', methods=['POST'])
+@blueprint.route('/account/update-billing-email', methods=['POST'])
 @login_required
-def api_account():
-    #TODO use MFA not password to save account information
-    return jsonify({'message': 'not implemented'})
+@prepared_json
+def api_account_update_billing_email(params):
+    if params.get('authorization_token') is None:
+        params['message'] = messages.ERR_AUTHORIZATION
+        return jsonify(params)
+    try:
+        authorized = False
+        transaction_id = b64encode(hmac.new(bytes(current_user.apikey.api_key_secret, "ascii"), bytes('/account/update-billing-email', "ascii"), hashlib.sha1).digest()).decode()
+        for u2f_key in current_user.u2f_keys:
+            check_token = b64encode(hmac.new(bytes(transaction_id, "ascii"), bytes(u2f_key.get('webauthn_id'), "ascii"), hashlib.sha1).digest()).decode()
+            if check_token == params.get('authorization_token'):
+                authorized = True
+        #TODO totp
+        if authorized is False:
+            params['message'] = messages.ERR_AUTHORIZATION
+            raise jsonify(params)
 
-    params = request.get_json()
-    changes = []
-    err = None
-    responses = []
-    protected = ['verification_hash', 'registered', 'socket_key', 'plan_id', 'account_id', 'password']
-    params_keys = set()
-    for param in params:
-        if param.get('prop') in protected:
-            continue
-        if param.get('prop') == 'alias' and current_user.account.alias == param.get('value'):
-            responses.append(f"{param.get('prop')} unchanged")
-            continue
-        if param.get('prop') == 'billing_email':
-            password = [i['value'] for i in params if i['prop'] == 'password'][0] or None
-            if password is None:
-                err = 'password was not provided when changing the billing email'
-                responses.append(err)
-                break
-            if not check_password_policy(password) or not \
-                check_encrypted_password(password, current_user.password):
-                err = messages.ERR_VALIDATION_PASSWORD_POLICY
-                responses.append(err)
-                break
+        from_value = current_user.account.billing_email
+        if not check_email_rules(params.get('billing_email')):
+            raise ValueError(f"billing_email {params.get('billing_email')} is not valid")
 
-        params_keys.add(param.get('prop'))
-        from_value = getattr(current_user.account, param.get('prop'))
-        setattr(current_user.account, param.get('prop'), param.get('value'))
-        changes.append(f"{param.get('prop')} from {from_value} to {param.get('value')}")
-
-    res = None
-    if len(changes) > 0:
-        res = current_user.account.persist()
-    if res is False:
-        err = f'Error saving {" ".join(params_keys)}'
-        responses.append(messages.ERR_ACCOUNT_UPDATE)
-    if res is True:
-        responses.append(messages.OK_ACCOUNT_UPDATED)
+        current_user.account.billing_email = params.get('billing_email')
+        current_user.account.persist()
         ActivityLog(
             member_id=current_user.member_id,
             action=ActivityLog.ACTION_USER_CHANGED_ACCOUNT,
-            description='\t'.join(changes)
+            description=f"billing_email updated from {from_value} to {current_user.account.billing_email}"
         ).persist()
+        params['status'] = 'success'
+        params['message'] = messages.OK_ACCOUNT_UPDATED
+        account_dict = {}
+        for col in current_user.account.cols():
+            account_dict[col] = getattr(current_user.account, col)
+        params['account'] = account_dict
 
-    account_dict = {}
-    for col in current_user.account.cols():
-        account_dict[col] = getattr(current_user.account, col)
+    except Exception as err:
+        logger.exception(err)
+        params['message'] = messages.ERR_ACCOUNT_UPDATE
+        if app.debug:
+            params['error'] = str(err)
 
-    return jsonify({
-        'status': 'success' if err is None else 'error',
-        'error': err,
-        'message': "\n".join(responses),
-        'account': account_dict,
-        'result': err is None
-    })
+    return jsonify(params)
 
 @blueprint.route('/account-config', methods=['POST'])
 @login_required
@@ -1378,5 +1364,79 @@ def api_login_magic_link(params):
     ).persist()
     params['status'] = 'success'
     params['message'] = messages.OK_MAGIC_LINK_SENT
+
+    return jsonify(params)
+
+@control_timing_attacks(seconds=2)
+@blueprint.route('/authorization', methods=['POST'])
+@login_required
+@prepared_json
+def api_authorization(params):
+    try:
+        transaction_id = b64encode(hmac.new(bytes(current_user.apikey.api_key_secret, "ascii"), bytes(params['target'], "ascii"), hashlib.sha1).digest()).decode()
+        if params['transaction_id'] != transaction_id:
+            params['message'] = messages.ERR_AUTHORIZATION
+            raise ValueError('transaction ids do not match')
+
+        if 'assertion_response' in params:
+            mfa = MemberMfa()
+            mfa.member_id = current_user.member_id
+            mfa.webauthn_id = params['assertion_response'].get('rawId')
+            mfa.exists(['member_id', 'webauthn_id'])
+            if not mfa.hydrate():
+                params['message'] = messages.ERR_AUTHORIZATION
+                raise ValueError('transaction ids do not match')
+
+            webauthn_user = webauthn.WebAuthnUser(
+                user_id=current_user.email.encode('utf8'),
+                username=current_user.email,
+                display_name=current_user.email,
+                icon_url=None,
+                sign_count=0,
+                credential_id=str(webauthn.webauthn._webauthn_b64_decode(mfa.webauthn_id)), # pylint: disable=protected-access
+                public_key=mfa.webauthn_public_key,
+                rp_id=config.get_app().get("app_domain")
+            )
+            webauthn_assertion_response = webauthn.WebAuthnAssertionResponse(
+                webauthn_user,
+                assertion_response=params['assertion_response'],
+                challenge=mfa.webauthn_challenge,
+                origin=config.get_app().get("app_url"),
+                uv_required=False
+            )
+            webauthn_assertion_response.verify()
+            params['authorization_token'] = b64encode(hmac.new(bytes(transaction_id, "ascii"), bytes(mfa.webauthn_id, "ascii"), hashlib.sha1).digest()).decode()
+            params['status']              = 'success'
+            params['message']             = messages.OK_AUTHENTICATED
+
+        else:
+            # totp
+            pass
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@control_timing_attacks(seconds=2)
+@blueprint.route('/endpoints/authorization', methods=['POST'])
+@login_required
+@prepared_json
+def api_endpoints_authorization(params):
+    try:
+        if params['target'] in config.public_endpoints:
+            return jsonify(params)
+        for require_authz in config.require_authz:
+            if params['target'].startswith(require_authz):
+                params['transaction_id'] = b64encode(hmac.new(bytes(current_user.apikey.api_key_secret, "ascii"), bytes(params['target'], "ascii"), hashlib.sha1).digest()).decode()
+                break
+        params['status'] = 'success'
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
 
     return jsonify(params)
