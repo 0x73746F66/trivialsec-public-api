@@ -12,7 +12,7 @@ from pyotp import TOTP, random_base32
 from qrcode import QRCode
 from qrcode.constants import ERROR_CORRECT_L
 
-from trivialsec.decorators import control_timing_attacks, require_recaptcha, prepared_json
+from trivialsec.decorators import control_timing_attacks, require_recaptcha, prepared_json, require_authz
 from trivialsec.helpers import messages, oneway_hash, check_domain_rules, check_email_rules, is_valid_ipv4_address, is_valid_ipv6_address
 from trivialsec.helpers.config import config
 from trivialsec.helpers.payments import checkout, create_customer
@@ -39,8 +39,8 @@ from trivialsec.services.domains import handle_add_domain
 logger = logging.getLogger(__name__)
 blueprint = Blueprint('api', __name__)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/test', methods=['GET', 'POST'])
+@control_timing_attacks(seconds=2)
 @login_required
 @prepared_json
 def test(params):
@@ -49,8 +49,8 @@ def test(params):
     params['message'] = f'{request.method} {request.base_url}'
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/register', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='public_action')
 @prepared_json
 def api_register(params):
@@ -99,8 +99,8 @@ def api_register(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/registration/webauthn', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='confirmation_action')
 @prepared_json
 def api_confirmation_webauthn(params):
@@ -144,8 +144,8 @@ def api_confirmation_webauthn(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/registration/totp', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='confirmation_action')
 @prepared_json
 def api_registration_totp(params):
@@ -196,8 +196,8 @@ def api_registration_totp(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/authorization/webauthn', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='authorization_action')
 @prepared_json
 def api_authorization_webauthn(params):
@@ -275,8 +275,8 @@ def api_authorization_webauthn(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/authorization/totp', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='authorization_action')
 @prepared_json
 def api_authorization_totp(params):
@@ -338,8 +338,8 @@ def api_authorization_totp(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/webauthn/device-name', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='name_device_action')
 @prepared_json
 def api_name_device(params):
@@ -365,8 +365,8 @@ def api_name_device(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/recovery/scratch', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='recovery_action')
 @prepared_json
 def api_recover_scratch(params):
@@ -411,8 +411,8 @@ def api_recover_scratch(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/recovery/email', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='recovery_action')
 @prepared_json
 def api_recover_email(params):
@@ -493,8 +493,8 @@ def api_recover_email(params):
 
     return jsonify(params)
 
-@control_timing_attacks(seconds=2)
 @blueprint.route('/subscribe', methods=['POST'])
+@control_timing_attacks(seconds=2)
 @require_recaptcha(action='subscribe_action')
 @prepared_json
 def api_subscribe(params):
@@ -768,69 +768,85 @@ def api_create_project():
 
     return jsonify(params)
 
-@blueprint.route('/update-email', methods=['POST'])
+@blueprint.route('/account/update-email', methods=['POST'])
 @login_required
-def api_update_email():
-    #TODO use MFA not password to save account information
-    return jsonify({'message': 'not implemented'})
-    errors = []
-    params = request.get_json()
-    params['status'] = 'info'
-    params['message'] = 'Email update not available at this time'
-
-    check_member = Member(email=params.get('email'))
-    if check_member.exists(['email']):
-        errors.append(messages.ERR_MEMBER_EXIST)
-
-    if 'email' not in params or not check_email_rules(params.get('email')):
-        errors.append(messages.ERR_VALIDATION_EMAIL_RULES)
-
-    if not check_encrypted_password(params.get('password'), current_user.password):
-        errors.append(messages.ERR_VALIDATION_PASSWORD_POLICY)
-
-    if len(errors) > 0:
-        params['status'] = 'error'
-        params['message'] = "\n".join(errors)
-        return jsonify(params)
-
-    current_user.email = params.get('email')
-    current_user.verified = False
-    current_user.confirmation_sent = False
-    current_user.confirmation_url = f"/confirmation/{oneway_hash(random())}"
-    current_user.persist()
-    confirmation_url = f"{config.get_app().get('app_url')}{current_user.confirmation_url}"
+@require_authz
+@prepared_json
+def api_update_email(params):
     try:
+        check_member = Member(email=params.get('new_email'))
+        if check_member.exists(['email']):
+            logger.info('check_member.exists')
+            params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
+            return jsonify(params)
+
+        if 'new_email' not in params or not check_email_rules(params.get('new_email')):
+            logger.info('check_email_rules')
+            params['message'] = messages.ERR_VALIDATION_EMAIL_RULES
+            return jsonify(params)
+
+        member = Member()
+        member.member_id = current_user.member_id
+        if not member.exists():
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        member.hydrate()
+        from_value = member.email
+        member.email = params.get('new_email')
+        member.verified = False
+        member.confirmation_sent = False
+        confirmation_hash = oneway_hash(f'{random()}{member.account_id}')
+        member.confirmation_url = f"/verify/{confirmation_hash}"
+        member.persist()
         send_email(
-            subject="TrivialSec - email address updated",
-            recipient=params.get('email'),
+            subject="TrivialSec - Email address verification",
+            recipient=member.email,
             template='updated_email',
             data={
-                "activation_url": confirmation_url
+                "activation_url": f"{config.get_app().get('app_url')}{member.confirmation_url}"
             }
         )
-        current_user.confirmation_sent = True
-        if current_user.persist():
-            if request.headers.getlist("X-Forwarded-For"):
-                remote_addr = '\t'.join(request.headers.getlist("X-Forwarded-For"))
-            else:
-                remote_addr = request.remote_addr
-            ActivityLog(
-                member_id=current_user.member_id,
-                action=ActivityLog.ACTION_USER_CHANGE_EMAIL_REQUEST,
-                description=f'{remote_addr}\t{request.user_agent}'
-            ).persist()
-            params['status'] = 'success'
-            params['message'] = messages.OK_EMAIL_UPDATE
-        return jsonify(params)
+        member.confirmation_sent = True
+        member.persist()
+        ActivityLog(
+            member_id=current_user.member_id,
+            action=ActivityLog.ACTION_USER_CHANGE_EMAIL_REQUEST,
+            description=f"email updated from {from_value} to {current_user.email}"
+        ).persist()
+        params['status'] = 'success'
+        params['message'] = messages.OK_EMAIL_UPDATE
 
-    except Exception as ex:
-        logger.exception(ex)
-        params['error'] = str(ex)
-        errors.append(messages.ERR_EMAIL_NOT_SENT)
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
 
-    if len(errors) > 0:
-        params['status'] = 'error'
-        params['message'] = "\n".join(errors)
+    return jsonify(params)
+
+@blueprint.route('/mfa/rename-device', methods=['POST'])
+@login_required
+@prepared_json
+def api_mfa_rename_device(params):
+    try:
+        mfa = MemberMfa()
+        mfa.mfa_id = params.get("device_id")
+        mfa.hydrate()
+        if not mfa.member_id:
+            return jsonify(params)
+
+        mfa.name = params.get("device_name")
+        if not mfa.name:
+            return jsonify(params)
+
+        mfa.persist()
+        params['status'] = 'success'
+        params['message'] = messages.OK_REGISTERED_MFA
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
 
     return jsonify(params)
 
@@ -892,23 +908,10 @@ def api_invitation(params):
 
 @blueprint.route('/account/update-billing-email', methods=['POST'])
 @login_required
+@require_authz
 @prepared_json
 def api_account_update_billing_email(params):
-    if params.get('authorization_token') is None:
-        params['message'] = messages.ERR_AUTHORIZATION
-        return jsonify(params)
     try:
-        authorized = False
-        transaction_id = b64encode(hmac.new(bytes(current_user.apikey.api_key_secret, "ascii"), bytes('/account/update-billing-email', "ascii"), hashlib.sha1).digest()).decode()
-        for u2f_key in current_user.u2f_keys:
-            check_token = b64encode(hmac.new(bytes(transaction_id, "ascii"), bytes(u2f_key.get('webauthn_id'), "ascii"), hashlib.sha1).digest()).decode()
-            if check_token == params.get('authorization_token'):
-                authorized = True
-        #TODO totp
-        if authorized is False:
-            params['message'] = messages.ERR_AUTHORIZATION
-            raise jsonify(params)
-
         from_value = current_user.account.billing_email
         if not check_email_rules(params.get('billing_email')):
             raise ValueError(f"billing_email {params.get('billing_email')} is not valid")

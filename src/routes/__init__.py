@@ -127,19 +127,22 @@ def load_user(user_id: int) -> Member:
     totp_mfa.active = True
     if totp_mfa.exists(['member_id', 'type', 'active']):
         totp_mfa.hydrate()
-        setattr(member, 'totp_mfa', totp_mfa)
+        setattr(member, 'totp_mfa', totp_mfa.created_at.isoformat())
 
     u2f_keys = []
+    index = 0
     for u2f_key in MemberMfas().find_by([('member_id', member.member_id), ('type', 'webauthn'), ('active', True)], limit=1000):
+        index += 1
         u2f_keys.append({
-            'name': u2f_key.name,
-            'webauthn_id': u2f_key.webauthn_id
+            'mfa_id': u2f_key.mfa_id,
+            'name': u2f_key.name or f'Key {index}',
+            'webauthn_id': u2f_key.webauthn_id,
+            'registered': u2f_key.created_at.isoformat()
         })
 
     setattr(account, 'plan', plan)
     setattr(member, 'account', account)
     setattr(member, 'apikey', apikey)
-    setattr(member, 'totp_mfa', totp_mfa)
     setattr(member, 'u2f_keys', u2f_keys)
 
     return member

@@ -42,6 +42,7 @@ app:
     - /recovery
   require_authz:
     - /account/update-billing-email
+    - /account/update-email
 
 redis:
   host: redis

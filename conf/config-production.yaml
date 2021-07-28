@@ -30,6 +30,7 @@ app:
     - /recovery
   require_authz:
     - /account/update-billing-email
+    - /account/update-email
 
 redis:
   host: master.trivialsec-prod-redis.4kjmta.apse2.cache.amazonaws.com
