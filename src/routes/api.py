@@ -850,6 +850,68 @@ def api_mfa_rename_device(params):
 
     return jsonify(params)
 
+@blueprint.route('/mfa/remove-device', methods=['POST'])
+@login_required
+@prepared_json
+def api_mfa_remove_device(params):
+    try:
+        if len(current_user.u2f_keys) < 2:
+            params['message'] = messages.ERR_MFA_REMOVE_LAST_KEY
+            return jsonify(params)
+
+        mfa = MemberMfa()
+        mfa.mfa_id = params.get("device_id")
+        mfa.hydrate()
+        if not mfa.member_id:
+            return jsonify(params)
+
+        if mfa.delete():
+            params['status'] = 'success'
+            params['message'] = messages.OK_MFA_REMOVED
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/recovery/regenerate-scratch', methods=['GET'])
+@login_required
+@require_authz
+@prepared_json
+def api_regenerate_scratch(params):
+    try:
+        member = Member()
+        member.member_id = current_user.member_id
+        if not member.exists():
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        if not member.hydrate():
+            params['message'] = messages.ERR_ORG_MEMBER
+            return jsonify(params)
+
+        from_value = member.scratch_code
+        scratch = oneway_hash(f'{random()}{member.member_id}')
+        member.scratch_code = f'{scratch[:4]}-{scratch[4:10]}-{scratch[10:18]}-{scratch[18:24]}'.upper()
+        member.persist()
+        ActivityLog(
+            member_id=current_user.member_id,
+            action=ActivityLog.ACTION_RECOVERY_CODE_CHANGED,
+            description=f"scratch_code updated from {from_value} to {member.scratch_code}"
+        ).persist()
+        params['scratch_code'] = member.scratch_code
+        params['status'] = 'success'
+        params['message'] = messages.OK_GENERIC
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
 @blueprint.route('/invitation', methods=['POST'])
 @login_required
 @prepared_json
@@ -1431,11 +1493,160 @@ def api_endpoints_authorization(params):
     try:
         if params['target'] in config.public_endpoints:
             return jsonify(params)
-        for require_authz in config.require_authz:
-            if params['target'].startswith(require_authz):
+
+        for check_path in config.require_authz:
+            if params['target'].startswith(check_path):
                 params['transaction_id'] = b64encode(hmac.new(bytes(current_user.apikey.api_key_secret, "ascii"), bytes(params['target'], "ascii"), hashlib.sha1).digest()).decode()
+                params['message'] = 'Authorisation Required'
                 break
+
         params['status'] = 'success'
+        if params['message'] != 'Authorisation Required':
+            params['message'] = messages.OK_GENERIC
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/add-mfa/webauthn', methods=['POST'])
+@login_required
+@prepared_json
+def api_add_mfa_webauthn(params):
+    try:
+        if params.get('assertion_response') is not None:
+            mfa = MemberMfa()
+            mfa.member_id = current_user.member_id
+            mfa.webauthn_id = params['assertion_response'].get('rawId')
+            mfa.exists(['member_id', 'webauthn_id'])
+            if not mfa.hydrate():
+                params['message'] = messages.ERR_ORG_MEMBER
+                return jsonify(params)
+
+            webauthn_user = webauthn.WebAuthnUser(
+                user_id=current_user.email.encode('utf8'),
+                username=current_user.email,
+                display_name=current_user.email,
+                icon_url=None,
+                sign_count=0,
+                credential_id=str(webauthn.webauthn._webauthn_b64_decode(mfa.webauthn_id)),
+                public_key=mfa.webauthn_public_key,
+                rp_id=config.get_app().get("app_domain")
+            )
+            webauthn_assertion_response = webauthn.WebAuthnAssertionResponse(
+                webauthn_user,
+                assertion_response=params['assertion_response'],
+                challenge=mfa.webauthn_challenge,
+                origin=config.get_app().get("app_url"),
+                uv_required=False
+            )
+            webauthn_assertion_response.verify()
+            mfa.active = True
+            mfa.persist()
+            ActivityLog(
+                member_id=current_user.member_id,
+                action=ActivityLog.ACTION_ADD_MFA_U2F,
+                description=mfa.mfa_id
+            ).persist()
+            params['status']        = 'success'
+            params['message']       = messages.OK_REGISTERED_MFA
+        else:
+            mfa = MemberMfa()
+            mfa.member_id = current_user.member_id
+            mfa.webauthn_id = params.get("webauthn_id")
+            if mfa.exists(['member_id', 'webauthn_id']):
+                mfa.hydrate()
+            else:
+                mfa.type = 'webauthn'
+                mfa.created_at = datetime.now()
+
+            mfa.webauthn_challenge = params.get("webauthn_challenge")
+            mfa.webauthn_public_key = params.get("webauthn_public_key")
+            mfa.active = False
+            webauthn_registration_response = webauthn.WebAuthnRegistrationResponse(
+                rp_id=config.get_app().get("app_domain"),
+                origin=config.get_app().get("app_url"),
+                registration_response={
+                    'attObj': params.get('attestationObject'),
+                    'clientData': params.get('clientDataJSON'),
+                },
+                challenge=mfa.webauthn_challenge
+            )
+            webauthn_registration_response.verify()
+            mfa.persist()
+            params['status'] = 'success'
+            params['message'] = messages.OK_REGISTERED_MFA
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@blueprint.route('/add-mfa/totp', methods=['GET', 'POST'])
+@login_required
+@prepared_json
+def api_add_mfa_totp(params):
+    try:
+        mfa = MemberMfa()
+        mfa.type = 'totp'
+        mfa.member_id = current_user.member_id
+        if mfa.exists(['member_id', 'type']):
+            mfa.hydrate(['member_id', 'type'])
+        else:
+            mfa.totp_code = random_base32()
+            mfa.created_at = datetime.now()
+
+        totp = TOTP(mfa.totp_code)
+        if request.method == 'GET':
+            mfa.member_id = current_user.member_id
+            if mfa.exists(['member_id', 'type']):
+                mfa.hydrate(['member_id', 'type'])
+            else:
+                mfa.created_at = datetime.now()
+
+            mfa.active = False
+            mfa.persist()
+            provisioning_uri = totp.provisioning_uri(name=current_user.email, issuer_name='Trivial Security')
+            qr_code = QRCode(
+                version=5,
+                error_correction=ERROR_CORRECT_L,
+                box_size=8,
+                border=4
+            )
+            qr_code.add_data(provisioning_uri)
+            qr_code.make(fit=True)
+            img = qr_code.make_image()
+            with BytesIO() as buf:
+                img.save(buf, 'png')
+                res = buf.getvalue()
+                params['qr_code'] = b64encode(res).decode()
+
+            params['totp_code'] = mfa.totp_code
+            params['status'] = 'success'
+            params['message'] = messages.INFO_TOTP_GENERATION
+
+        if request.method == 'POST':
+            if not mfa.mfa_id:
+                params['message'] = messages.ERR_ORG_MEMBER
+                return jsonify(params)
+
+            if not totp.verify(int(params.get("totp_code"))):
+                params['message'] = messages.ERR_VALIDATION_TOTP
+                return jsonify(params)
+
+            mfa.active = True
+            mfa.persist()
+            ActivityLog(
+                member_id=current_user.member_id,
+                action=ActivityLog.ACTION_ADD_MFA_TOTP,
+                description=mfa.mfa_id
+            ).persist()
+            params['status']        = 'success'
+            params['message']       = messages.OK_REGISTERED_MFA
 
     except Exception as err:
         logger.exception(err)

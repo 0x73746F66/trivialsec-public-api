@@ -43,6 +43,7 @@ app:
   require_authz:
     - /account/update-billing-email
     - /account/update-email
+    - /recovery/regenerate-scratch
 
 redis:
   host: redis

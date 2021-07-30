@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import request, abort, Response, make_response, g, current_app as app
 from flask_login import LoginManager, login_user, logout_user
 from gunicorn.glogging import logging
@@ -30,7 +31,7 @@ def before_request():
 
     if request.method in ["OPTIONS"]:
         response = make_response()
-        response.headers.add("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+        response.headers.add("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, X-Authorization-Token")
         response.headers.add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
         allowed_origin = config.get_app().get("site_url")
         if request.environ.get('HTTP_ORIGIN') == config.get_app().get("app_url"):
@@ -127,17 +128,18 @@ def load_user(user_id: int) -> Member:
     totp_mfa.active = True
     if totp_mfa.exists(['member_id', 'type', 'active']):
         totp_mfa.hydrate()
-        setattr(member, 'totp_mfa', totp_mfa.created_at.isoformat())
+        setattr(member, 'totp_mfa_id', totp_mfa.mfa_id)
 
     u2f_keys = []
     index = 0
     for u2f_key in MemberMfas().find_by([('member_id', member.member_id), ('type', 'webauthn'), ('active', True)], limit=1000):
         index += 1
+
         u2f_keys.append({
             'mfa_id': u2f_key.mfa_id,
             'name': u2f_key.name or f'Key {index}',
             'webauthn_id': u2f_key.webauthn_id,
-            'registered': u2f_key.created_at.isoformat()
+            'registered': u2f_key.created_at if not isinstance(u2f_key.created_at, datetime) else u2f_key.created_at.isoformat()
         })
 
     setattr(account, 'plan', plan)
