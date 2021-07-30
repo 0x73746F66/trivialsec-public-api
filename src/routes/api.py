@@ -855,8 +855,11 @@ def api_mfa_rename_device(params):
 @prepared_json
 def api_mfa_remove_device(params):
     try:
-        if len(current_user.u2f_keys) < 2:
+        if len(current_user.u2f_keys) == 1 and not hasattr(current_user, 'totp_mfa_id'):
             params['message'] = messages.ERR_MFA_REMOVE_LAST_KEY
+            return jsonify(params)
+        if len(current_user.u2f_keys) < 2 and not hasattr(current_user, 'totp_mfa_id'):
+            params['message'] = messages.OK_GENERIC
             return jsonify(params)
 
         mfa = MemberMfa()
@@ -1443,9 +1446,9 @@ def api_authorization(params):
             params['message'] = messages.ERR_AUTHORIZATION
             raise ValueError('transaction ids do not match')
 
+        mfa = MemberMfa()
+        mfa.member_id = current_user.member_id
         if 'assertion_response' in params:
-            mfa = MemberMfa()
-            mfa.member_id = current_user.member_id
             mfa.webauthn_id = params['assertion_response'].get('rawId')
             mfa.exists(['member_id', 'webauthn_id'])
             if not mfa.hydrate():
@@ -1471,12 +1474,29 @@ def api_authorization(params):
             )
             webauthn_assertion_response.verify()
             params['authorization_token'] = b64encode(hmac.new(bytes(transaction_id, "ascii"), bytes(mfa.webauthn_id, "ascii"), hashlib.sha1).digest()).decode()
-            params['status']              = 'success'
-            params['message']             = messages.OK_AUTHENTICATED
 
+        elif 'totp_code' in params:
+            mfa.type = 'totp'
+            if mfa.exists(['member_id', 'type']):
+                mfa.hydrate(['member_id', 'type'])
+            else:
+                raise ValueError('TOTP is not available')
+
+            totp = TOTP(mfa.totp_code)
+            if not mfa.mfa_id:
+                params['message'] = messages.ERR_ORG_MEMBER
+                raise ValueError('missing mfa_id')
+
+            if not totp.verify(int(params.get("totp_code"))):
+                params['message'] = messages.ERR_AUTHORIZATION
+                raise ValueError('TOTP verification failed')
+            params['authorization_token'] = b64encode(hmac.new(bytes(transaction_id, "ascii"), bytes(mfa.totp_code, "ascii"), hashlib.sha1).digest()).decode()
         else:
-            # totp
-            pass
+            params['message'] = messages.ERR_AUTHORIZATION
+            raise ValueError('no authz method provided')
+
+        params['status']              = 'success'
+        params['message']             = messages.OK_AUTHENTICATED
 
     except Exception as err:
         logger.exception(err)
