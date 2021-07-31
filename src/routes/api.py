@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 from io import BytesIO
 from datetime import datetime
 from random import random
@@ -15,7 +13,7 @@ from qrcode.constants import ERROR_CORRECT_L
 from trivialsec.decorators import control_timing_attacks, require_recaptcha, prepared_json, require_authz
 from trivialsec.helpers import messages, oneway_hash, check_domain_rules, check_email_rules, is_valid_ipv4_address, is_valid_ipv6_address
 from trivialsec.helpers.config import config
-from trivialsec.helpers.authz import start_transaction, get_authorization_token, get_transaction_id
+from trivialsec.helpers.authz import get_authorization_token, start_transaction
 from trivialsec.helpers.payments import checkout, create_customer
 from trivialsec.helpers.sendgrid import send_email, upsert_contact
 from trivialsec.helpers.transport import Metadata
@@ -1442,13 +1440,10 @@ def api_login_magic_link(params):
 @prepared_json
 def api_authorization(params):
     try:
-        transaction_id = get_transaction_id(
-            target=params['target'],
-            key=current_user.apikey.api_key_secret,
-        )
-        if params['transaction_id'] != transaction_id:
+        transaction_id = params.get('transaction_id')
+        if transaction_id is None:
             params['message'] = messages.ERR_AUTHORIZATION
-            raise ValueError('transaction ids do not match')
+            raise ValueError('missing transaction_id')
 
         mfa = MemberMfa()
         mfa.member_id = current_user.member_id
@@ -1477,10 +1472,7 @@ def api_authorization(params):
                 uv_required=False
             )
             webauthn_assertion_response.verify()
-            params['authorization_token'] = get_authorization_token(
-                key=mfa.webauthn_id,
-                transaction_id=transaction_id,
-            )
+            params['authorization_token'] = get_authorization_token(mfa.webauthn_id, transaction_id)
 
         elif 'totp_code' in params:
             mfa.type = 'totp'
@@ -1497,10 +1489,7 @@ def api_authorization(params):
             if not totp.verify(int(params.get("totp_code"))):
                 params['message'] = messages.ERR_AUTHORIZATION
                 raise ValueError('TOTP verification failed')
-            params['authorization_token'] = get_authorization_token(
-                key=mfa.totp_code,
-                transaction_id=transaction_id,
-            )
+            params['authorization_token'] = get_authorization_token(mfa.totp_code, transaction_id)
         else:
             params['message'] = messages.ERR_AUTHORIZATION
             raise ValueError('no authz method provided')
@@ -1526,10 +1515,7 @@ def api_endpoints_authorization(params):
 
         for check_path in config.require_authz:
             if params['target'].startswith(check_path):
-                params['transaction_id'] = start_transaction(
-                    target=params['target'],
-                    key=current_user.apikey.api_key_secret,
-                )
+                params['transaction_id'] = start_transaction(params['target'])
                 params['message'] = 'Authorisation Required'
                 break
 
