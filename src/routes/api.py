@@ -13,7 +13,7 @@ from qrcode.constants import ERROR_CORRECT_L
 from trivialsec.decorators import control_timing_attacks, require_recaptcha, prepared_json, require_authz
 from trivialsec.helpers import messages, oneway_hash, check_domain_rules, check_email_rules, is_valid_ipv4_address, is_valid_ipv6_address
 from trivialsec.helpers.config import config
-from trivialsec.helpers.authz import get_authorization_token, start_transaction
+from trivialsec.helpers.authz import get_authorization_token, start_transaction, is_active_transaction
 from trivialsec.helpers.payments import checkout, create_customer
 from trivialsec.helpers.sendgrid import send_email, upsert_contact
 from trivialsec.helpers.transport import Metadata
@@ -1505,6 +1505,50 @@ def api_authorization(params):
     return jsonify(params)
 
 @control_timing_attacks(seconds=2)
+@blueprint.route('/authorization/check', methods=['POST'])
+@login_required
+@prepared_json
+def api_authorization_check(params):
+    try:
+        if params['target'] in config.public_endpoints:
+            params['status'] = 'success'
+            params['message'] = messages.OK_GENERIC
+            return jsonify(params)
+
+        authorisation_required = False
+        for check_path in config.require_authz:
+            if params['target'].startswith(check_path):
+                authorisation_required = True
+                break
+
+        if authorisation_required is False:
+            params['status'] = 'success'
+            params['message'] = messages.OK_GENERIC
+            return jsonify(params)
+
+        if not is_active_transaction(params['transaction_id'], params['target']):
+            params['transaction_id'] = start_transaction(params['target'])
+            params['status'] = 'info'
+            params['message'] = messages.INFO_AUTHORISATION_REQUIRED
+            return jsonify(params)
+
+        cache_key = f'{config.app_version}{params["authorization_token"]}'
+        stored_value = config._redis.get(cache_key)
+        if stored_value is None:
+            params['status'] = 'info'
+            params['message'] = messages.INFO_AUTHORISATION_REQUIRED
+        else:
+            params['status'] = 'success'
+            params['message'] = messages.OK_GENERIC
+
+    except Exception as err:
+        logger.exception(err)
+        if app.debug:
+            params['error'] = str(err)
+
+    return jsonify(params)
+
+@control_timing_attacks(seconds=2)
 @blueprint.route('/endpoints/authorization', methods=['POST'])
 @login_required
 @prepared_json
@@ -1516,11 +1560,11 @@ def api_endpoints_authorization(params):
         for check_path in config.require_authz:
             if params['target'].startswith(check_path):
                 params['transaction_id'] = start_transaction(params['target'])
-                params['message'] = 'Authorisation Required'
+                params['message'] = messages.INFO_AUTHORISATION_REQUIRED
                 break
 
         params['status'] = 'success'
-        if params['message'] != 'Authorisation Required':
+        if params['message'] != messages.INFO_AUTHORISATION_REQUIRED:
             params['message'] = messages.OK_GENERIC
 
     except Exception as err:
