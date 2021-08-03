@@ -1533,7 +1533,7 @@ def api_authorization_check(params):
             return jsonify(params)
 
         cache_key = f'{config.app_version}{params["authorization_token"]}'
-        stored_value = config._redis.get(cache_key)
+        stored_value = config.redis_client.get(cache_key)
         if stored_value is None:
             params['status'] = 'info'
             params['message'] = messages.INFO_AUTHORISATION_REQUIRED
