@@ -58,9 +58,8 @@ mysql:
 aws:
   region_name: ap-southeast-2
   archive_bucket: archive-trivialsec
-  archive_object_prefix: dev/
   public_bucket: assets-trivialsec
-  public_object_prefix: dev/
+  env_prefix: dev
 
 sendgrid:
   templates:
