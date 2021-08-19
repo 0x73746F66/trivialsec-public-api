@@ -741,15 +741,50 @@ def api_create_project():
         domain_dict[col] = getattr(domain, col)
     params['domain'] = domain_dict
 
+    amass = ServiceType(name='amass')
+    amass.hydrate('name')
+    queue_job(
+        service_type=amass,
+        priority=1,
+        member=current_user,
+        project=project,
+        params={'target': domain.name},
+        scan_next={
+            'new': {
+                'target_type': 'domain',
+                'service_types': ['amass', 'nmap', 'metadata', 'drill']
+            },
+            'target': {
+                'service_types': []
+            }
+        }
+    )
+    nmap = ServiceType(name='nmap')
+    nmap.hydrate('name')
+    queue_job(
+        service_type=nmap,
+        priority=1,
+        member=current_user,
+        project=project,
+        params={'target': domain.name},
+        scan_next={
+            'new': {
+                'target_type': 'port',
+                'service_types': ['testssl']
+            },
+            'target': {
+                'service_types': ['testssl']
+            }
+        }
+    )
     metadata = ServiceType(name='metadata')
     metadata.hydrate('name')
     queue_job(
         service_type=metadata,
-        priority=3,
+        priority=1,
         member=current_user,
         project=project,
-        params={'target': domain.name},
-        scan_next=['amass', 'testssl']
+        params={'target': domain.name}
     )
     drill = ServiceType(name='drill')
     drill.hydrate('name')
