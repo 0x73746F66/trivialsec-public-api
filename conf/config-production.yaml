@@ -1,9 +1,8 @@
 ---
 app:
-  env: Prod
   version: 21.6.28
-  http_proxy: proxy.trivialsec.local:3128
-  https_proxy: proxy.trivialsec.local:3128
+  http_proxy: proxy.trivialsec.com:3128
+  https_proxy: proxy.trivialsec.com:3128
   frontend:
     asset_scheme: "https://"
     asset_domain: www.trivialsec.com
