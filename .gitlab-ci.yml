@@ -1,6 +1,6 @@
 variables:
   DOCKER_USER: ci
-  COMMON_VERSION: 0.7.0
+  COMMON_VERSION: 0.8.0
   APP_ENV: Prod
   APP_NAME: trivialsec
   BUILD_ENV: production

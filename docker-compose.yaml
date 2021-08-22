@@ -13,7 +13,6 @@ services:
     image: "registry.gitlab.com/trivialsec/public-api/${BUILD_ENV}:${IMAGE_TAG:-latest}"
     container_name: api
     environment:
-      - CONFIG_FILE=${CONFIG_FILE:-config.yaml}
       - APP_ENV=${APP_ENV:-Dev}
       - APP_NAME=${APP_NAME}
       - LOG_LEVEL=${LOG_LEVEL}

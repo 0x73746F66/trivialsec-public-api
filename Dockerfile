@@ -14,7 +14,6 @@ ENV APP_NAME ${APP_NAME}
 ENV AWS_REGION ${AWS_REGION}
 ENV AWS_ACCESS_KEY_ID ${AWS_ACCESS_KEY_ID}
 ENV AWS_SECRET_ACCESS_KEY ${AWS_SECRET_ACCESS_KEY}
-ENV CONFIG_FILE ${CONFIG_FILE}
 ENV LOG_LEVEL ${LOG_LEVEL}
 ENV FLASK_DEBUG ${FLASK_DEBUG}
 ENV FLASK_ENV ${FLASK_ENV}
@@ -32,6 +31,5 @@ RUN echo "Cloning Python Libs Package from Gitlab" \
     && rm -rf /tmp/trivialsec
 
 COPY --chown=trivialsec:trivialsec src .
-COPY --chown=trivialsec:trivialsec conf/config-${BUILD_ENV}.yaml config.yaml
 
 CMD ["gunicorn", "--config=gunicorn.conf.py"]
