@@ -243,6 +243,7 @@ def api_authorization_webauthn(params):
         scratch = oneway_hash(f'{random()}{member.member_id}')
         member.scratch_code = f'{scratch[:4]}-{scratch[4:10]}-{scratch[10:18]}-{scratch[18:24]}'.upper()
         member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
+        member.verified = True
         member.persist()
         magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
         upsert_contact(recipient_email=member.email, list_name='members')
@@ -307,6 +308,7 @@ def api_authorization_totp(params):
         scratch = oneway_hash(f'{random()}{member.member_id}')
         member.scratch_code = f'{scratch[:4]}-{scratch[4:10]}-{scratch[10:18]}-{scratch[18:24]}'.upper()
         member.confirmation_url = f"/login/{oneway_hash(f'{random()}{remote_addr}')}"
+        member.verified = True
         member.persist()
         magic_link = f"{config.get_app().get('app_url')}{member.confirmation_url}"
         upsert_contact(recipient_email=member.email, list_name='members')
