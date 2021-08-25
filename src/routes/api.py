@@ -20,6 +20,7 @@ from trivialsec.helpers.transport import Metadata
 from trivialsec.models.domain_stat import DomainStat
 from trivialsec.models.domain import Domain, Domains
 from trivialsec.models.project import Project
+from trivialsec.models.job_run import JobRuns
 from trivialsec.models.service_type import ServiceType
 from trivialsec.models.activity_log import ActivityLog
 from trivialsec.models.known_ip import KnownIp
@@ -690,10 +691,11 @@ def api_domain_tls():
 @login_required
 def api_create_project():
     params = request.get_json()
-
-    project = Project(name=params.get('project_name'))
+    project_name = params.get('project_name')
+    project = Project(name=project_name)
+    project.gen_canonical_id()
     project.account_id = current_user.account_id
-    if project.exists(['name']):
+    if project.exists(['canonical_id']):
         project.hydrate()
         project.deleted = False
 
@@ -1305,10 +1307,8 @@ def api_organisation_member():
 
 @blueprint.route('/archive-project', methods=['POST'])
 @login_required
-def api_archive_project():
-    #TODO
-    return jsonify({'message': 'not implemented'})
-    params = request.get_json()
+@prepared_json
+def api_archive_project(params):
     project = Project(
         account_id=current_user.account_id,
         project_id=int(params.get('project_id'))
@@ -1324,11 +1324,15 @@ def api_archive_project():
         action=ActivityLog.ACTION_DELETE_PROJECT,
         description=project.name
     ).persist()
-    domains = Domains()
-    for domain in domains.find_by([('account_id', current_user.account_id), ('project_id', project.project_id)], limit=1000):
+
+    for domain in Domains().find_by([('account_id', current_user.account_id), ('project_id', project.project_id)], limit=1000):
         domain.deleted = True
         domain.enabled = False
         domain.persist()
+
+    for job in JobRuns().find_by([('account_id', current_user.account_id), ('project_id', project.project_id)], limit=1000):
+        if job.state not in [ServiceType.STATE_COMPLETED, ServiceType.STATE_FINALISING, ServiceType.STATE_PROCESSING, ServiceType.STATE_STARTING]:
+            job.delete()
 
     return jsonify({
         'status': 'success',
