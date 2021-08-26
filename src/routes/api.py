@@ -664,8 +664,13 @@ def api_domain_tls():
 
     scan_type = 'passive'
     domain.get_stats()
-    if hasattr(domain, 'http_last_checked'):
-        http_last_checked = datetime.fromisoformat(getattr(domain, 'http_last_checked')).replace(microsecond=0)
+    for domain_stat in domain.stats:
+        if domain_stat.domain_stat == DomainStat.HTTP_LAST_CHECKED:
+            setattr(domain, DomainStat.HTTP_LAST_CHECKED, domain_stat.domain_value)
+            break
+
+    if hasattr(domain, DomainStat.HTTP_LAST_CHECKED):
+        http_last_checked = datetime.fromisoformat(getattr(domain, DomainStat.HTTP_LAST_CHECKED)).replace(microsecond=0)
         for domain_stat in domain.stats:
             created_at = datetime.fromisoformat(domain_stat.created_at)
             if created_at == http_last_checked and domain_stat.domain_stat == DomainStat.APP_VERIFIED and domain_stat.domain_value == '1':
@@ -1341,10 +1346,8 @@ def api_archive_project(params):
 
 @blueprint.route('/enable-domain', methods=['POST'])
 @login_required
-def api_enable_domain():
-    #TODO
-    return jsonify({'message': 'not implemented'})
-    params = request.get_json()
+@prepared_json
+def api_enable_domain(params):
     domain = Domain(
         account_id=current_user.account_id,
         domain_id=int(params.get('domain_id'))
@@ -1368,10 +1371,8 @@ def api_enable_domain():
 
 @blueprint.route('/disable-domain', methods=['POST'])
 @login_required
-def api_disable_domain():
-    #TODO
-    return jsonify({'message': 'not implemented'})
-    params = request.get_json()
+@prepared_json
+def api_disable_domain(params):
     domain = Domain(
         account_id=current_user.account_id,
         domain_id=int(params.get('domain_id'))
@@ -1395,10 +1396,8 @@ def api_disable_domain():
 
 @blueprint.route('/delete-domain', methods=['POST'])
 @login_required
-def api_delete_domain():
-    #TODO
-    return jsonify({'message': 'not implemented'})
-    params = request.get_json()
+@prepared_json
+def api_delete_domain(params):
     domain = Domain(
         account_id=current_user.account_id,
         domain_id=int(params.get('domain_id'))
