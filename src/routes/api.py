@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from datetime import datetime
 from random import random
@@ -32,7 +33,7 @@ from trivialsec.models.account_config import AccountConfig
 from trivialsec.models.invitation import Invitation
 from trivialsec.models.role import Role, Roles
 from trivialsec.services.accounts import register
-from trivialsec.services.jobs import queue_job
+from trivialsec.services.jobs import queue_job, QueueData
 from trivialsec.services.domains import handle_add_domain
 
 
@@ -1407,7 +1408,14 @@ def api_delete_domain(params):
         return abort(403)
 
     domain.deleted = True
+    domain.enabled = False
     domain.persist()
+    cancellable_states = [ServiceType.STATE_COMPLETED, ServiceType.STATE_FINALISING, ServiceType.STATE_PROCESSING, ServiceType.STATE_STARTING]
+    for job in JobRuns().find_by([('account_id', current_user.account_id), ('project_id', domain.project_id)], limit=1000):
+        queue_data = QueueData(**json.loads(job.queue_data))
+        if job.state not in cancellable_states and queue_data.target.endswith(domain.name):
+            job.delete()
+
     ActivityLog(
         member_id=current_user.member_id,
         action=ActivityLog.ACTION_DELETE_DOMAIN,
