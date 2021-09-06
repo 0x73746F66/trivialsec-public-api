@@ -27,6 +27,16 @@ def create_app():
     Session(app)
     with app.app_context():
         from routes.api import blueprint as api_blueprint
+        from routes.recovery import blueprint as recovery_blueprint
+        from routes.auth import blueprint as auth_blueprint
+        from routes.account import blueprint as account_blueprint
+        from routes.project import blueprint as project_blueprint
+        from routes.domain import blueprint as domain_blueprint
         app.register_blueprint(api_blueprint, url_prefix='/v1')
+        app.register_blueprint(recovery_blueprint, url_prefix='/v1/recovery')
+        app.register_blueprint(auth_blueprint, url_prefix='/v1/auth')
+        app.register_blueprint(account_blueprint, url_prefix='/v1/account')
+        app.register_blueprint(project_blueprint, url_prefix='/v1/project')
+        app.register_blueprint(domain_blueprint, url_prefix='/v1/domain')
 
     return app

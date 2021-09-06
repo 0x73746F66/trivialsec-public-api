@@ -11,7 +11,7 @@ from trivialsec.models.account import Account
 from trivialsec.models.plan import Plan
 from trivialsec.services.apikey import get_valid_key
 
-__version__ = 'v1'
+
 logger = logging.getLogger(__name__)
 
 @app.teardown_request
@@ -23,7 +23,7 @@ def teardown_request_func(error: Exception = None):
 def before_request():
     no_content = [
         '/',
-        f'/{__version__}',
+        '/v1',
         '/healthcheck'
     ]
     if request.path in no_content:
