@@ -8,8 +8,8 @@ services:
       - APP_ENV=${APP_ENV:-Dev}
       - APP_NAME=${APP_NAME}
       - LOG_LEVEL=${LOG_LEVEL}
-      - AWS_ACCESS_KEY_ID=${TF_VAR_aws_access_key_id}
-      - AWS_SECRET_ACCESS_KEY=${TF_VAR_aws_secret_access_key}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
       - FLASK_DEBUG=1
       - FLASK_ENV=development
