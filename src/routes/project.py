@@ -14,7 +14,7 @@ from trivialsec.services.domains import handle_add_domain
 
 
 logger = logging.getLogger(__name__)
-blueprint = Blueprint('api', __name__)
+blueprint = Blueprint('project', __name__)
 
 @blueprint.route('/create', methods=['POST'])
 @control_timing_attacks(seconds=2)

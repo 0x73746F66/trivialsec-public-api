@@ -27,7 +27,7 @@ from trivialsec.services.accounts import register
 
 
 logger = logging.getLogger(__name__)
-blueprint = Blueprint('api', __name__)
+blueprint = Blueprint('account', __name__)
 
 @blueprint.route('/register', methods=['POST'])
 @control_timing_attacks(seconds=2)

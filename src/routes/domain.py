@@ -16,7 +16,7 @@ from trivialsec.services.jobs import queue_job, QueueData
 
 
 logger = logging.getLogger(__name__)
-blueprint = Blueprint('api', __name__)
+blueprint = Blueprint('domain', __name__)
 
 # @blueprint.route('/verify/<string:target>', methods=['GET'])
 # @control_timing_attacks(seconds=2)
@@ -170,7 +170,6 @@ blueprint = Blueprint('api', __name__)
 #     })
 
 @blueprint.route('/enable', methods=['POST'])
-@control_timing_attacks(seconds=2)
 @login_required
 @prepared_json
 def api_enable_domain(params):
@@ -196,7 +195,6 @@ def api_enable_domain(params):
     })
 
 @blueprint.route('/disable', methods=['POST'])
-@control_timing_attacks(seconds=2)
 @login_required
 @prepared_json
 def api_disable_domain(params):
@@ -222,7 +220,6 @@ def api_disable_domain(params):
     })
 
 @blueprint.route('/delete', methods=['POST'])
-@control_timing_attacks(seconds=2)
 @login_required
 @prepared_json
 def api_delete_domain(params):
