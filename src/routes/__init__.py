@@ -1,5 +1,5 @@
 from datetime import datetime
-from flask import request, abort, Response, make_response, g, current_app as app
+from flask import request, abort, Response, make_response, current_app as app
 from flask_login import LoginManager, login_user, logout_user
 from gunicorn.glogging import logging
 from trivialsec.helpers.config import config

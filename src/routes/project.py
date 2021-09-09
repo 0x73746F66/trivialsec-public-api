@@ -1,138 +1,81 @@
-from flask import Blueprint, jsonify, request, abort
+from flask import Blueprint, jsonify, abort
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
 from trivialsec.decorators import control_timing_attacks, prepared_json
-from trivialsec.helpers import messages, check_domain_rules, is_valid_ipv4_address, is_valid_ipv6_address
-from trivialsec.models.domain import Domain, Domains
+from trivialsec.helpers import messages, check_domain_rules
+from trivialsec.models.domain import Domain, Domains, DomainMonitor
 from trivialsec.models.project import Project
 from trivialsec.models.job_run import JobRuns
 from trivialsec.models.service_type import ServiceType
 from trivialsec.models.activity_log import ActivityLog
-from trivialsec.models.known_ip import KnownIp
-from trivialsec.services.jobs import queue_job
-from trivialsec.services.domains import handle_add_domain
+from trivialsec.services.domains import upsert_domain
 
 
 logger = logging.getLogger(__name__)
 blueprint = Blueprint('project', __name__)
 
 @blueprint.route('/create', methods=['POST'])
-@control_timing_attacks(seconds=2)
 @login_required
-def api_create_project():
-    params = request.get_json()
+@prepared_json
+def api_create_project(params):
     project_name = params.get('project_name')
+    domain_name = params.get('domain_name')
+    if not project_name or not domain_name:
+        params['message'] = 'You must provide both project and domain names'
+        return jsonify(params)
     project = Project(name=project_name)
     project.gen_canonical_id()
     project.account_id = current_user.account_id
+    project_exists = False
     if project.exists(['canonical_id']):
+        project_exists = True
         project.hydrate()
         project.deleted = False
 
-    target = params.get('domain_name')
-    if not is_valid_ipv4_address(target) and not is_valid_ipv6_address(target) and not check_domain_rules(target):
-        params['status'] = 'error'
-        params['message'] = f'{target} is an invalid target'
+    if not check_domain_rules(domain_name):
+        params['message'] = f'{domain_name} isn\'t a valid domain'
+        return jsonify(params)
+    if project_exists is False:
+        project.persist(exists=project_exists)
+    params['project_id'] = project.canonical_id
+    domain = Domain()
+    domain.domain_name = domain_name
+    try:
+        if domain.exists(f'domain_name:"{domain_name}"'):
+            params['status'] = 'info'
+            params['message'] = f'{domain_name} is already included in project {project.name}'
+            return jsonify(params)
+
+    except Exception as ex:
+        logger.exception(ex)
+        params['error'] = str(ex)
+        params['message'] = 'There was a system error interacting with the domain document'
         return jsonify(params)
 
-    project.persist()
-    params['project_id'] = project.project_id
-    if is_valid_ipv4_address(target) or is_valid_ipv6_address(target):
-        knownip = KnownIp(ip_address=target)
-        if not knownip.exists(['ip_address', 'project_id']):
-            knownip.account_id = current_user.account.account_id
-            knownip.project_id = project.project_id
-            knownip.source = 'create_project'
-            knownip.ip_version = 'ipv4' if is_valid_ipv4_address(target) else 'ipv6'
-            if knownip.persist():
-                ActivityLog(
-                    member_id=current_user.member_id,
-                    action=ActivityLog.ACTION_ADDED_IPADDRESS,
-                    description=target
-                ).persist()
-
-        knownip_dict = {}
-        for col in knownip.cols():
-            knownip_dict[col] = getattr(knownip, col)
-        params['ip_address'] = knownip_dict
-
-    domain = None
-    if check_domain_rules(target):
-        domain = handle_add_domain(domain_name=target, project=project, current_user=current_user)
-
-    if not isinstance(domain, Domain):
-        params['status'] = 'error'
-        params['message'] = messages.ERR_DOMAIN_ADD
+    domain_monitor = DomainMonitor()
+    domain_monitor.domain_name = domain_name
+    domain_monitor.enabled = False
+    domain_monitor.project_id = project.project_id
+    domain_monitor.account_id = current_user.account_id
+    domain_monitor_exists = domain_monitor.exists(['domain_name', 'project_id'])
+    if domain_monitor_exists is False and not domain_monitor.persist(exists=domain_monitor_exists):
+        params['message'] = 'There was a system error saving domain monitoring'
         return jsonify(params)
 
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_ADDED_DOMAIN,
-        description=domain.name
-    ).persist()
-    domain_dict = {}
-    for col in domain.cols():
-        domain_dict[col] = getattr(domain, col)
-    params['domain'] = domain_dict
+    try:
+        if not upsert_domain(domain, member=current_user, project=project):
+            params['message'] = 'There was a system error saving the domain document'
+            return jsonify(params)
 
-    amass = ServiceType(name='amass')
-    amass.hydrate('name')
-    queue_job(
-        service_type=amass,
-        priority=1,
-        member=current_user,
-        project=project,
-        params={'target': domain.name},
-        scan_next={
-            'new': {
-                'target_type': 'domain',
-                'service_types': ['amass', 'nmap', 'metadata', 'drill']
-            },
-            'target': {
-                'service_types': []
-            }
-        }
-    )
-    nmap = ServiceType(name='nmap')
-    nmap.hydrate('name')
-    queue_job(
-        service_type=nmap,
-        priority=1,
-        member=current_user,
-        project=project,
-        params={'target': domain.name},
-        scan_next={
-            'new': {
-                'target_type': 'port',
-                'service_types': ['testssl']
-            },
-            'target': {
-                'service_types': ['testssl']
-            }
-        }
-    )
-    metadata = ServiceType(name='metadata')
-    metadata.hydrate('name')
-    queue_job(
-        service_type=metadata,
-        priority=1,
-        member=current_user,
-        project=project,
-        params={'target': domain.name}
-    )
-    drill = ServiceType(name='drill')
-    drill.hydrate('name')
-    queue_job(
-        service_type=drill,
-        priority=1,
-        member=current_user,
-        project=project,
-        params={'target': domain.name},
-        on_demand=False
-    )
+    except Exception as ex:
+        logger.exception(ex)
+        params['error'] = str(ex)
+        params['message'] = 'There was a system error saving the domain document'
+        return jsonify(params)
 
+    params['domain'] = domain.get_doc()
     params['status'] = 'success'
-    params['message'] = messages.OK_ADDED_DOMAIN
+    params['message'] = messages.OK_ADDED_PROJECT if project_exists is True else messages.OK_UPDATE_PROJECT
 
     return jsonify(params)
 
@@ -157,7 +100,7 @@ def api_archive_project(params):
         description=project.name
     ).persist()
 
-    for domain in Domains().find_by([('account_id', current_user.account_id), ('project_id', project.project_id)], limit=1000):
+    for domain in Domains().search(f'account_id:"{current_user.account_id}" AND project_id:"{project.project_id}"'):
         domain.deleted = True
         domain.enabled = False
         domain.persist()

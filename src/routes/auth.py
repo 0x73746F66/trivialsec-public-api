@@ -2,14 +2,13 @@ from io import BytesIO
 from datetime import datetime
 from random import random
 from base64 import b64encode
+import webauthn
 from flask import Blueprint, jsonify, request, current_app as app
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
-import webauthn
 from pyotp import TOTP, random_base32
 from qrcode import QRCode
 from qrcode.constants import ERROR_CORRECT_L
-
 from trivialsec.decorators import control_timing_attacks, require_recaptcha, prepared_json
 from trivialsec.helpers import messages, oneway_hash, check_email_rules
 from trivialsec.helpers.config import config

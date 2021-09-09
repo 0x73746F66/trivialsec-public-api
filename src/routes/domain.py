@@ -1,18 +1,14 @@
 import json
-from datetime import datetime
-from flask import Blueprint, jsonify, request, abort
+from flask import Blueprint, jsonify, abort
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
-from trivialsec.decorators import control_timing_attacks, prepared_json
-from trivialsec.helpers import messages, check_domain_rules
-from trivialsec.helpers.transport import Metadata
-from trivialsec.models.domain_stat import DomainStat
+from trivialsec.decorators import prepared_json
+from trivialsec.helpers import messages
 from trivialsec.models.domain import Domain
-from trivialsec.models.project import Project
 from trivialsec.models.job_run import JobRuns
 from trivialsec.models.service_type import ServiceType
 from trivialsec.models.activity_log import ActivityLog
-from trivialsec.services.jobs import queue_job, QueueData
+from trivialsec.services.jobs import QueueData
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +43,7 @@ blueprint = Blueprint('domain', __name__)
 # def api_domain_metadata():
 #     params = request.get_json()
 #     domain = Domain(domain_id=params['domain_id'], account_id=current_user.account_id)
-#     domain.hydrate(['domain_id', 'account_id'])
+#     domain.hydrate(['domain_id', 'account_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
 #     project = Project(project_id=domain.project_id)
 #     if not project.hydrate():
 #         params['status'] = 'error'
@@ -61,7 +57,7 @@ blueprint = Blueprint('domain', __name__)
 #         member=current_user,
 #         project=project,
 #         priority=2,
-#         params={'target': domain.name}
+#         params={'target': domain.name, 'target_type': 'domain'}
 #     )
 
 #     return jsonify({
@@ -75,7 +71,7 @@ blueprint = Blueprint('domain', __name__)
 # def api_domain_dns():
 #     params = request.get_json()
 #     domain = Domain(domain_id=params['domain_id'], account_id=current_user.account_id)
-#     domain.hydrate(['domain_id', 'account_id'])
+#     domain.hydrate(['domain_id', 'account_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
 #     project = Project(project_id=domain.project_id)
 #     if not project.hydrate():
 #         params['status'] = 'error'
@@ -89,7 +85,7 @@ blueprint = Blueprint('domain', __name__)
 #         member=current_user,
 #         project=project,
 #         priority=2,
-#         params={'target': domain.name}
+#         params={'target': domain.name, 'target_type': 'domain'}
 #     )
 
 #     return jsonify({
@@ -103,7 +99,7 @@ blueprint = Blueprint('domain', __name__)
 # def api_domain_subdomains():
 #     params = request.get_json()
 #     domain = Domain(domain_id=params['domain_id'], account_id=current_user.account_id)
-#     domain.hydrate(['domain_id', 'account_id'])
+#     domain.hydrate(['domain_id', 'account_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
 #     project = Project(project_id=domain.project_id)
 #     if not project.hydrate():
 #         params['status'] = 'error'
@@ -118,7 +114,7 @@ blueprint = Blueprint('domain', __name__)
 #         member=current_user,
 #         project=project,
 #         priority=2,
-#         params={'target': domain.name, 'scan_type': scan_type}
+#         params={'target': domain.name, 'scan_type': scan_type, 'target_type': 'domain'}
 #     )
 
 #     return jsonify({
@@ -132,7 +128,7 @@ blueprint = Blueprint('domain', __name__)
 # def api_domain_tls():
 #     params = request.get_json()
 #     domain = Domain(domain_id=params['domain_id'], account_id=current_user.account_id)
-#     domain.hydrate(['domain_id', 'account_id'])
+#     domain.hydrate(['domain_id', 'account_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
 #     project = Project(project_id=domain.project_id)
 #     if not project.hydrate():
 #         params['status'] = 'error'
@@ -161,7 +157,7 @@ blueprint = Blueprint('domain', __name__)
 #         member=current_user,
 #         project=project,
 #         priority=2,
-#         params={'target': domain.name, 'scan_type': scan_type}
+#         params={'target': domain.name, 'scan_type': scan_type, 'target_type': 'domain'}
 #     )
 
 #     return jsonify({
@@ -177,7 +173,7 @@ def api_enable_domain(params):
         account_id=current_user.account_id,
         domain_id=int(params.get('domain_id'))
     )
-    domain.hydrate(['account_id', 'domain_id'])
+    domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
     if not isinstance(domain, Domain):
         return abort(403)
 
@@ -202,7 +198,7 @@ def api_disable_domain(params):
         account_id=current_user.account_id,
         domain_id=int(params.get('domain_id'))
     )
-    domain.hydrate(['account_id', 'domain_id'])
+    domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
     if not isinstance(domain, Domain):
         return abort(403)
 
@@ -227,7 +223,7 @@ def api_delete_domain(params):
         account_id=current_user.account_id,
         domain_id=int(params.get('domain_id'))
     )
-    domain.hydrate(['account_id', 'domain_id'])
+    domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
     if not isinstance(domain, Domain):
         return abort(403)
 
