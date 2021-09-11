@@ -41,11 +41,7 @@ def api_create_project(params):
     domain = Domain()
     domain.domain_name = domain_name
     try:
-        if domain.exists(f'domain_name:"{domain_name}"'):
-            params['status'] = 'info'
-            params['message'] = f'{domain_name} is already included in project {project.name}'
-            return jsonify(params)
-
+        domain.exists(f'domain_name:"{domain_name}"')
     except Exception as ex:
         logger.exception(ex)
         params['error'] = str(ex)
