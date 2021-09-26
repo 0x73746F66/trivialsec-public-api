@@ -5,6 +5,7 @@ from base64 import b64encode
 from flask import Blueprint, jsonify, request, current_app as app
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
+import validators
 import webauthn
 from pyotp import TOTP, random_base32
 from qrcode import QRCode

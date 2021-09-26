@@ -1,8 +1,9 @@
+import validators
 from flask import Blueprint, jsonify, abort
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
 from trivialsec.decorators import control_timing_attacks, prepared_json
-from trivialsec.helpers import messages, check_domain_rules
+from trivialsec.helpers import messages
 from trivialsec.models.domain import Domain, Domains, DomainMonitor
 from trivialsec.models.project import Project
 from trivialsec.models.job_run import JobRuns
@@ -32,7 +33,7 @@ def api_create_project(params):
         project.hydrate()
         project.deleted = False
 
-    if not check_domain_rules(domain_name):
+    if not validators.domain(domain_name):
         params['message'] = f'{domain_name} isn\'t a valid domain'
         return jsonify(params)
     if project_exists is False:

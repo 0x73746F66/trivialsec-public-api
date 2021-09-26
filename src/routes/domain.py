@@ -1,4 +1,5 @@
 import json
+import validators
 from flask import Blueprint, jsonify, abort
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
@@ -18,7 +19,7 @@ blueprint = Blueprint('domain', __name__)
 # @control_timing_attacks(seconds=2)
 # @login_required
 # def api_domain_verify(target):
-#     if not check_domain_rules(target):
+#     if not validators.domain(target):
 #         return jsonify({
 #             'error': messages.ERR_VALIDATION_DOMAIN_RULES,
 #             'registered': False,
