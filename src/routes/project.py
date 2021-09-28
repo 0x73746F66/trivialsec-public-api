@@ -42,7 +42,7 @@ def api_create_project(params):
     domain = Domain()
     domain.domain_name = domain_name
     try:
-        domain.exists(f'domain_name:"{domain_name}"')
+        domain.exists()
     except Exception as ex:
         logger.exception(ex)
         params['error'] = str(ex)
@@ -63,6 +63,7 @@ def api_create_project(params):
         if not upsert_domain(domain, member=current_user, project=project):
             params['message'] = 'There was a system error saving the domain document'
             return jsonify(params)
+        domain.exists()
 
     except Exception as ex:
         logger.exception(ex)

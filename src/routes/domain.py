@@ -25,7 +25,7 @@ blueprint = Blueprint('domain', __name__)
 #             'registered': False,
 #             'result': False
 #         })
-#     http_metadata = Metadata(url=f'https://{target}').verification_check()
+#     http_metadata = Metadata(url=f'https://{target}').verification_check(current_user.account.verification_hash)
 #     ActivityLog(
 #         member_id=current_user.member_id,
 #         action=ActivityLog.ACTION_DOMAIN_VERIFICATION_CHECK,
@@ -35,7 +35,7 @@ blueprint = Blueprint('domain', __name__)
 #         'error': http_metadata.dns_answer,
 #         'registered': http_metadata.registered,
 #         'verification_hash': current_user.account.verification_hash,
-#         'result': bool(current_user.account.verification_hash == http_metadata.verification_hash)
+#         'result': http_metadata.txt_verification
 #     })
 
 # @blueprint.route('/queue/metadata', methods=['POST'])
@@ -166,84 +166,84 @@ blueprint = Blueprint('domain', __name__)
 #         'message': messages.OK_SCAN_TLS
 #     })
 
-@blueprint.route('/enable', methods=['POST'])
-@login_required
-@prepared_json
-def api_enable_domain(params):
-    domain = Domain(
-        account_id=current_user.account_id,
-        domain_id=int(params.get('domain_id'))
-    )
-    domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
-    if not isinstance(domain, Domain):
-        return abort(403)
+# @blueprint.route('/enable', methods=['POST'])
+# @login_required
+# @prepared_json
+# def api_enable_domain(params):
+#     domain = Domain(
+#         account_id=current_user.account_id,
+#         domain_id=int(params.get('domain_id'))
+#     )
+#     domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
+#     if not isinstance(domain, Domain):
+#         return abort(403)
 
-    domain.enabled = True
-    domain.persist()
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_ENABLE_DOMAIN,
-        description=domain.name
-    ).persist()
+#     domain.enabled = True
+#     domain.persist()
+#     ActivityLog(
+#         member_id=current_user.member_id,
+#         action=ActivityLog.ACTION_ENABLE_DOMAIN,
+#         description=domain.name
+#     ).persist()
 
-    return jsonify({
-        'status': 'success',
-        'message': messages.OK_DOMAIN_ENABLED
-    })
+#     return jsonify({
+#         'status': 'success',
+#         'message': messages.OK_DOMAIN_ENABLED
+#     })
 
-@blueprint.route('/disable', methods=['POST'])
-@login_required
-@prepared_json
-def api_disable_domain(params):
-    domain = Domain(
-        account_id=current_user.account_id,
-        domain_id=int(params.get('domain_id'))
-    )
-    domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
-    if not isinstance(domain, Domain):
-        return abort(403)
+# @blueprint.route('/disable', methods=['POST'])
+# @login_required
+# @prepared_json
+# def api_disable_domain(params):
+#     domain = Domain(
+#         account_id=current_user.account_id,
+#         domain_id=int(params.get('domain_id'))
+#     )
+#     domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
+#     if not isinstance(domain, Domain):
+#         return abort(403)
 
-    domain.enabled = False
-    domain.persist()
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_DISABLE_DOMAIN,
-        description=domain.name
-    ).persist()
+#     domain.enabled = False
+#     domain.persist()
+#     ActivityLog(
+#         member_id=current_user.member_id,
+#         action=ActivityLog.ACTION_DISABLE_DOMAIN,
+#         description=domain.name
+#     ).persist()
 
-    return jsonify({
-        'status': 'success',
-        'message': messages.OK_DOMAIN_DISABLED
-    })
+#     return jsonify({
+#         'status': 'success',
+#         'message': messages.OK_DOMAIN_DISABLED
+#     })
 
-@blueprint.route('/delete', methods=['POST'])
-@login_required
-@prepared_json
-def api_delete_domain(params):
-    domain = Domain(
-        account_id=current_user.account_id,
-        domain_id=int(params.get('domain_id'))
-    )
-    domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
-    if not isinstance(domain, Domain):
-        return abort(403)
+# @blueprint.route('/delete', methods=['POST'])
+# @login_required
+# @prepared_json
+# def api_delete_domain(params):
+#     domain = Domain(
+#         account_id=current_user.account_id,
+#         domain_id=int(params.get('domain_id'))
+#     )
+#     domain.hydrate(['account_id', 'domain_id']) #domain.hydrate(query_string=f'domain_name:"{domain_name}"')
+#     if not isinstance(domain, Domain):
+#         return abort(403)
 
-    domain.deleted = True
-    domain.enabled = False
-    domain.persist()
-    cancellable_states = [ServiceType.STATE_COMPLETED, ServiceType.STATE_FINALISING, ServiceType.STATE_PROCESSING, ServiceType.STATE_STARTING]
-    for job in JobRuns().find_by([('account_id', current_user.account_id), ('project_id', domain.project_id)], limit=1000):
-        queue_data = QueueData(**json.loads(job.queue_data))
-        if job.state not in cancellable_states and queue_data.target.endswith(domain.name):
-            job.delete()
+#     domain.deleted = True
+#     domain.enabled = False
+#     domain.persist()
+#     cancellable_states = [ServiceType.STATE_COMPLETED, ServiceType.STATE_FINALISING, ServiceType.STATE_PROCESSING, ServiceType.STATE_STARTING]
+#     for job in JobRuns().find_by([('account_id', current_user.account_id), ('project_id', domain.project_id)], limit=1000):
+#         queue_data = QueueData(**json.loads(job.queue_data))
+#         if job.state not in cancellable_states and queue_data.target.endswith(domain.name):
+#             job.delete()
 
-    ActivityLog(
-        member_id=current_user.member_id,
-        action=ActivityLog.ACTION_DELETE_DOMAIN,
-        description=domain.name
-    ).persist()
+#     ActivityLog(
+#         member_id=current_user.member_id,
+#         action=ActivityLog.ACTION_DELETE_DOMAIN,
+#         description=domain.name
+#     ).persist()
 
-    return jsonify({
-        'status': 'success',
-        'message': messages.OK_DOMAIN_DELETE
-    })
+#     return jsonify({
+#         'status': 'success',
+#         'message': messages.OK_DOMAIN_DELETE
+#     })
