@@ -33,7 +33,7 @@ def api_create_project(params):
         project.hydrate()
         project.deleted = False
 
-    if not validators.domain(domain_name):
+    if validators.domain(domain_name) is not True:
         params['message'] = f'{domain_name} isn\'t a valid domain'
         return jsonify(params)
     if project_exists is False:
@@ -60,7 +60,7 @@ def api_create_project(params):
         return jsonify(params)
 
     try:
-        if not upsert_domain(domain, member=current_user, project=project):
+        if not upsert_domain(domain, member=current_user, project=project, on_demand=False):
             params['message'] = 'There was a system error saving the domain document'
             return jsonify(params)
         domain.exists()

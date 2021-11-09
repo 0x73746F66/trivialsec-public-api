@@ -27,3 +27,4 @@ assets/
 deploy/
 **/*.tgz
 python-libs/
+.lh/

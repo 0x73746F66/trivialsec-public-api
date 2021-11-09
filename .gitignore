@@ -74,6 +74,7 @@ venv.bak/
 .idea
 .terraform/
 terraform.*
+.lh/
 
 # sensitive
 **/*.db

@@ -19,7 +19,7 @@ blueprint = Blueprint('domain', __name__)
 # @control_timing_attacks(seconds=2)
 # @login_required
 # def api_domain_verify(target):
-#     if not validators.domain(target):
+#     if validators.domain(target) is not True:
 #         return jsonify({
 #             'error': messages.ERR_VALIDATION_DOMAIN_RULES,
 #             'registered': False,
