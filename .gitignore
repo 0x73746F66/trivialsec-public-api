@@ -73,6 +73,7 @@ venv.bak/
 .vscode
 .idea
 .terraform/
+.terraform*
 terraform.*
 **/.tf*
 **/terraform.*
