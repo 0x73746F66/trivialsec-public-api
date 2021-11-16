@@ -36,15 +36,12 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-        delay: 0s
         max_attempts: 10
-        window: 3s
       resources:
         limits:
           cpus: '1.00'
           memory: 1GB
         reservations:
-          cpus: '0.50'
           memory: 500M
     logging:
       options:

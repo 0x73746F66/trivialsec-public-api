@@ -1,0 +1,162 @@
+#!/bin/sh
+# <UDF name="FQDN" label="The hostname for the new Linode." />
+# <UDF name="AWS_ACCESS_KEY_ID" Label="AWS API Key ID" />
+# <UDF name="AWS_SECRET_ACCESS_KEY" Label="AWS Secret Access Key" />
+# <UDF name="AWS_REGION" Label="AWS Region" />
+# <UDF name="FLASK_RUN_PORT" Label="expose port" />
+# <UDF name="COMMON_VERSION" Label="trivialsec pylibs version (git tag)" />
+# <UDF name="GITLAB_USER" Label="container registry user" />
+# <UDF name="GITLAB_PASSWORD" Label="container registry password" />
+# <UDF name="BRANCH" Label="public-api branch" />
+
+set -ex
+exec >/root/stackscript.log 2>&1
+echo "Linode Variable Values:  LINODE_ID: $LINODE_ID,  LINODE_LISHUSERNAME: $LINODE_LISHUSERNAME,  LINODE_RAM: $LINODE_RAM,  LINODE_DATACENTERID:$LINODE_DATACENTERID"
+source <ssinclude StackScriptID="931877">
+
+function add_packages() {
+    echo "Adding packages..."
+    apk -q add --update \
+        lsof \
+        procps \
+        bash \
+        mysql-client \
+        su-exec \
+        autoconf \
+        automake \
+        curl-dev \
+        g++ \
+        gcc \
+        git \
+        libc-dev \
+        libmaxminddb-dev \
+        libstdc++ \
+        libtool \
+        libxml2-dev \
+        linux-headers \
+        lmdb-dev \
+        libffi-dev \
+        libpng-dev \
+        jpeg-dev \
+        libjpeg-turbo-dev \
+        freetype-dev \
+        make \
+        openssl-dev \
+        pcre-dev \
+        zlib-dev \
+        tar \
+        zip \
+        python3-dev
+    update-ca-certificates --fresh
+}
+function prepare_env() {
+    echo "Preparing folders..."
+    mkdir -p /srv/app \
+            /var/log/gunicorn \
+            /usr/share/man/man1mkdir \
+            /usr/share/man/man1
+    echo "Creating user and group..."
+    addgroup -S trivialsec
+    adduser -S -D -H -h /srv/app -s /bin/python3 -G trivialsec -g trivialsec trivialsec
+    export PATH="$PATH:/srv/app/.local/bin"
+    echo 'export PATH="$PATH:/srv/app/.local/bin"' >> ~/.profile
+    echo "Install awscli..."
+    apk -q add --update py-pip
+    python3 -m pip install -U pip
+    chown -R trivialsec:trivialsec /srv/app
+    su-exec trivialsec python3 -m pip install pipx
+    su-exec trivialsec pipx install awscli
+    echo "Setup awscli..."
+    mkdir -p /srv/app/.aws
+    cat > /srv/app/.aws/config <<CONFIG
+[default]
+region = ${AWS_REGION}
+CONFIG
+    cat > /srv/app/.aws/credentials <<CREDS
+[default]
+aws_access_key_id = ${AWS_ACCESS_KEY_ID}
+aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}
+CREDS
+    chown -R trivialsec:trivialsec /srv/app
+    # Test AWS Credentials stored in Env vars
+    echo $(su-exec trivialsec aws sts get-caller-identity)
+    echo "Installing Dependencies..."
+    su-exec trivialsec python3 -m pip -q install --user --no-cache-dir --no-warn-script-location -U setuptools wheel
+    su-exec trivialsec pipx install gunicorn
+    cat > /srv/app/.profile <<CONFIG
+export APP_ENV=${APP_ENV:-Prod}
+export APP_NAME=${APP_NAME:-trivialsec}
+export LOG_LEVEL=${LOG_LEVEL:-WARNING}
+export FLASK_DEBUG=${FLASK_DEBUG:-0}
+export FLASK_ENV=${FLASK_ENV:-production}
+export FLASK_RUN_PORT=${FLASK_RUN_PORT:-8888}
+CONFIG
+    cat > /srv/app/.env <<CONFIG
+APP_ENV=${APP_ENV:-Prod}
+APP_NAME=${APP_NAME:-trivialsec}
+LOG_LEVEL=${LOG_LEVEL:-WARNING}
+FLASK_DEBUG=${FLASK_DEBUG:-0}
+FLASK_ENV=${FLASK_ENV:-production}
+FLASK_RUN_PORT=${FLASK_RUN_PORT:-8888}
+CONFIG
+    chown -R trivialsec:trivialsec /srv/app
+}
+function install_trivialsec_pylibs() {
+    echo "Cloning Python Libs Package from Gitlab"
+    git clone -q -c advice.detachedHead=false --depth 1 --branch ${COMMON_VERSION} --single-branch https://${GITLAB_USER}:${GITLAB_PASSWORD}@gitlab.com/trivialsec/python-common.git /tmp/trivialsec/python-libs
+    cd /tmp/trivialsec/python-libs
+    echo "Installing python-libs"
+    chown -R trivialsec:trivialsec /tmp/trivialsec/python-libs
+	su-exec trivialsec python3 setup.py check
+	su-exec trivialsec python3 setup.py sdist bdist_wheel
+	su-exec trivialsec python3 -m pip -q install --user -U dist/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl
+}
+function install_api() {
+    echo "Install API"
+    git clone -q -c advice.detachedHead=false --depth 1 --branch ${BRANCH} --single-branch https://${GITLAB_USER}:${GITLAB_PASSWORD}@gitlab.com/trivialsec/public-api.git /tmp/trivialsec/public-api
+    chown -R trivialsec:trivialsec /tmp/trivialsec/public-api
+    cp /tmp/trivialsec/public-api/src/gunicorn.conf.py /srv/app/gunicorn.conf.py
+    cp -r /tmp/trivialsec/public-api/src/app /srv/app/app
+    cp -r /tmp/trivialsec/public-api/src/routes /srv/app/routes
+    cp -r /tmp/trivialsec/public-api/src/services /srv/app/services
+    echo "Pip Install"
+    su-exec trivialsec python3 -m pip -q install --user -U -r /tmp/trivialsec/public-api/requirements.txt
+    cd /srv/app
+    rm -rf /tmp/trivialsec
+    chown -R trivialsec:trivialsec /var/log/gunicorn
+    source .env
+    su-exec trivialsec gunicorn --daemon --config=gunicorn.conf.py
+}
+function install() {
+    setup_hostname ${FQDN}
+    harden_ssh
+    cat << EOT > /etc/ssh/banner
+ _____      _       _       _ __
+/__   \_ __(_)_   _(_) __ _| / _\ ___  ___
+  / /\/ '__| \ \ / / |/ _\` | \ \ / _ \/ __|
+ / /  | |  | |\ V /| | (_| | |\ \  __/ (__
+ \/   |_|  |_| \_/ |_|\__,_|_\__/\___|\___|
+EOT
+    export PATH="$PATH:/root/.local/bin"
+    echo 'export PATH="$PATH:/root/.local/bin"' >> ~/.profile
+    echo -e "/sbin/ifconfig eth0 | awk '/inet / { print \$2 }' | sed 's/addr://'\necho\nw\necho\niostat\necho\nmpstat\necho\ndf\necho\nfree\necho\nnetstat -tulpn" >> ~/.profile
+    setup_swap ${LINODE_RAM}
+    setup_timezone UTC
+    patch_os
+    enable_auto_updates
+    add_packages
+    enable_fail2ban
+    prepare_env
+    install_trivialsec_pylibs
+    install_api
+
+    setup_firewall $(network_interface) 22 ${EXPOSE_PORT}
+    echo "Stackscript finished"
+
+}
+
+install
+rc-status
+stackscript_cleanup
+echo $(date +'%F') > /root/.deployed
+echo "Installation complete!"

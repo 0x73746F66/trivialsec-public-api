@@ -5,10 +5,13 @@ variables:
   APP_NAME: trivialsec
   BUILD_ENV: production
   AWS_REGION: ap-southeast-2
+  AWS_ACCOUNT: 984310022655
+  LINODE_FIREWALL: 13219
 
 before_script:
   - touch .env
   - make --version
+  - terraform --version
   - aws --version
   - docker --version
   - pylint --version
@@ -86,3 +89,56 @@ push:docker:
   only:
     refs:
       - main
+
+tf:plan:
+  tags:
+    - linode
+  stage: build
+  script:
+    - make plan
+  only:
+    refs:
+      - merge_request
+      - main
+  artifacts:
+    name: "tf:plan"
+    paths:
+      - plans/.tfplan
+    reports:
+      terraform: plans/tfplan.json
+
+tf:apply:
+  tags:
+    - linode
+  stage: deploy
+  script:
+    - make apply
+  only:
+    refs:
+      - main
+  environment:
+    name: linode
+    url: https://cloud.linode.com/search/?query=label:prd-main.trivialsec.com
+    on_stop: "tf:destroy"
+  dependencies:
+    - "tf:plan"
+  when: manual
+
+tf:destroy:
+  stage: deploy
+  variables:
+    GIT_STRATEGY: none
+  tags:
+    - linode
+  script:
+    - make destroy
+  when: manual
+  environment:
+    name: linode
+    action: stop
+  artifacts:
+    name: "tf:destroy"
+    paths:
+      - plans/.tfdestroy
+    reports:
+      terraform: plans/tfdestroy.json
