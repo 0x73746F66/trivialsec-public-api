@@ -121,11 +121,10 @@ function install_api() {
     cp -r /tmp/trivialsec/public-api/src/services /srv/app/services
     echo "Pip Install"
     su-exec trivialsec python3 -m pip -q install --user -U -r /tmp/trivialsec/public-api/requirements.txt
-    cd /srv/app
-    rm -rf /tmp/trivialsec
+    rm -rf /tmp/trivialsec/public-api
     chown -R trivialsec:trivialsec /var/log/gunicorn
-    source .env
-    su-exec trivialsec gunicorn --daemon --config=gunicorn.conf.py
+    source /srv/app/.env
+    su-exec trivialsec gunicorn --daemon --config=/srv/app/gunicorn.conf.py
 }
 function install() {
     setup_hostname ${FQDN}
@@ -150,7 +149,7 @@ EOT
     install_trivialsec_pylibs
     install_api
 
-    setup_firewall $(network_interface) 22 ${EXPOSE_PORT}
+    # setup_firewall $(network_interface) 22 ${EXPOSE_PORT}
     echo "Stackscript finished"
 
 }

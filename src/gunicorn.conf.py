@@ -32,7 +32,6 @@ logconfig_dict = {
     'incremental': False,
     'disable_existing_loggers': False,
 }
-daemon :bool = False
 user :str = 'trivialsec'
 group :str = 'trivialsec'
 chdir :str = '/srv/app'
