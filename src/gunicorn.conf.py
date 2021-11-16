@@ -1,11 +1,12 @@
 from os import getenv
 import multiprocessing
+from dotenv import dotenv_values
 
-
+env_vars = dotenv_values(".env")
 num_cpu :int = multiprocessing.cpu_count()
 wsgi_app :str = 'app:create_app()'
-proc_name :str = getenv('APP_NAME', 'api')
-loglevel :str = getenv('LOG_LEVEL', 'ERROR')
+proc_name :str = getenv('APP_NAME', env_vars.get('APP_NAME', 'api'))
+loglevel :str = getenv('LOG_LEVEL', env_vars.get('LOG_LEVEL', 'ERROR'))
 logconfig_dict = {
     'version': 1,
     'formatters': {
@@ -40,7 +41,7 @@ strip_header_spaces :bool = True
 accesslog :str = '/var/log/gunicorn/access.log'
 disable_redirect_access_to_syslog :bool = True
 errorlog :str = '/var/log/gunicorn/error.log'
-bind :str = f"0.0.0.0:{getenv('FLASK_RUN_PORT', '5081')}"
+bind :str = f"0.0.0.0:{getenv('FLASK_RUN_PORT', env_vars.get('FLASK_RUN_PORT', '5081'))}"
 workers :int = num_cpu * 2 + 1
 threads :int = num_cpu * 2
 timeout :int = 20
@@ -48,7 +49,7 @@ graceful_timeout :int = 30
 keepalive :int = 2
 limit_request_line :int = 4094
 limit_request_field_size :int = 8190
-reload :bool = getenv('FLASK_DEBUG') == '1'
+reload :bool = getenv('FLASK_DEBUG', env_vars.get('FLASK_DEBUG', '0')) == '1'
 reload_engine :str = 'poll'
 preload_app :bool = True
 

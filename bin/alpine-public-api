@@ -123,8 +123,8 @@ function install_api() {
     su-exec trivialsec python3 -m pip -q install --user -U -r /tmp/trivialsec/public-api/requirements.txt
     rm -rf /tmp/trivialsec/public-api
     chown -R trivialsec:trivialsec /var/log/gunicorn
-    source /srv/app/.env
-    su-exec trivialsec gunicorn --daemon --config=/srv/app/gunicorn.conf.py
+    cd /srv/app
+    su-exec trivialsec gunicorn --daemon --config=gunicorn.conf.py
 }
 function install() {
     setup_hostname ${FQDN}

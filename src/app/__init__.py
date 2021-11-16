@@ -1,5 +1,4 @@
 from os import getenv
-import redis
 from flask import Flask
 from flask_sessionstore import Session
 from werkzeug.debug import DebuggedApplication
