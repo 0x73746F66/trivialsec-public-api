@@ -13,7 +13,7 @@ def create_app():
         SECRET_KEY=config.session_secret_key,
         SESSION_TYPE='redis',
         SESSION_USE_SIGNER=True,
-        SESSION_REDIS=redis.Redis(host=config.redis.get('host'), ssl=bool(config.redis.get('ssl')))
+        SESSION_REDIS=config.redis_client
     )
 
     if getenv('FLASK_DEBUG') == '1':
