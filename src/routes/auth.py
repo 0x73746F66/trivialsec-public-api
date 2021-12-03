@@ -483,8 +483,6 @@ def api_add_webauthn(params):
                 action=ActivityLog.ACTION_ADD_MFA_U2F,
                 description=mfa.mfa_id
             ).persist()
-            params['status']        = 'success'
-            params['message']       = messages.OK_REGISTERED_MFA
         else:
             mfa = MemberMfa()
             mfa.member_id = current_user.member_id
@@ -509,9 +507,8 @@ def api_add_webauthn(params):
             )
             webauthn_registration_response.verify()
             mfa.persist()
-            params['status'] = 'success'
-            params['message'] = messages.OK_REGISTERED_MFA
-
+        params['status']        = 'success'
+        params['message']       = messages.OK_REGISTERED_MFA
     except Exception as err:
         logger.exception(err)
         if app.debug:

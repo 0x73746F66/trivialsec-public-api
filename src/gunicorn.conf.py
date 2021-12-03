@@ -5,7 +5,7 @@ from dotenv import dotenv_values
 env_vars = dotenv_values(".env")
 num_cpu :int = multiprocessing.cpu_count()
 wsgi_app :str = 'app:create_app()'
-proc_name :str = getenv('APP_NAME', env_vars.get('APP_NAME', 'api'))
+proc_name :str = getenv('APP_NAME', env_vars.get('APP_NAME', 'trivialsec'))
 loglevel :str = getenv('LOG_LEVEL', env_vars.get('LOG_LEVEL', 'ERROR'))
 logconfig_dict = {
     'version': 1,
@@ -22,13 +22,26 @@ logconfig_dict = {
             'level': loglevel,
             'formatter': 'default_formatter',
         },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'level': loglevel,
+            'maxBytes': 1024*1024,
+            'backupCount': 5,
+            'filename': '/var/log/gunicorn/application.log',
+            'formatter': 'default_formatter'
+        },
     },
     'loggers': {
+        'logs': {
+            'handlers': ['file', 'console'],
+            'level': loglevel,
+            'propagate': True,
+        }
     },
     'root': {
-        'level': 'DEBUG',
-        'propagate': False,
-        'handlers': ['console']
+        'level': loglevel,
+        'propagate': True,
+        'handlers': ['file', 'console']
     },
     'incremental': False,
     'disable_existing_loggers': False,
