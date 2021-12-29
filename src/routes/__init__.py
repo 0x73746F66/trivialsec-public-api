@@ -14,11 +14,6 @@ from trivialsec.services.apikey import get_valid_key
 
 logger = logging.getLogger(__name__)
 
-@app.teardown_request
-def teardown_request_func(error: Exception = None):
-    if error:
-        print(error)
-
 @app.before_request
 def before_request():
     no_content = [

@@ -5,7 +5,6 @@ from base64 import b64encode
 from flask import Blueprint, jsonify, request, current_app as app
 from flask_login import current_user, login_required
 from gunicorn.glogging import logging
-import validators
 import webauthn
 from pyotp import TOTP, random_base32
 from qrcode import QRCode
@@ -25,6 +24,7 @@ from trivialsec.models.account_config import AccountConfig
 from trivialsec.models.invitation import Invitation
 from trivialsec.models.role import Role, Roles
 from trivialsec.services.accounts import register
+from webauthn.webauthn import RegistrationRejectedException
 
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,8 @@ def api_confirmation_webauthn(params):
             challenge=mfa.webauthn_challenge
         )
         webauthn_registration_response.verify()
-        mfa.persist()
+        if not mfa.persist():
+            raise RegistrationRejectedException(f'cannot save MFA data: {mfa}')
         params['status'] = 'success'
         params['message'] = messages.OK_REGISTERED_MFA
 

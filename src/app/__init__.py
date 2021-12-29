@@ -1,9 +1,10 @@
 from os import getenv
 from flask import Flask
-from flask_sessionstore import Session
+from flask_session import Session
 from werkzeug.debug import DebuggedApplication
 from werkzeug.middleware.proxy_fix import ProxyFix
 from trivialsec.helpers.config import config
+
 
 def create_app():
     app = Flask(__name__, root_path='/srv/app', instance_relative_config=False)
@@ -11,7 +12,7 @@ def create_app():
         PREFERRED_URL_SCHEME='https',
         SECRET_KEY=config.session_secret_key,
         SESSION_TYPE='redis',
-        SESSION_USE_SIGNER=True,
+        SESSION_USE_SIGNER=False,
         SESSION_REDIS=config.redis_client
     )
 
