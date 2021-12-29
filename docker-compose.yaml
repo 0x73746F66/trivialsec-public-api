@@ -4,6 +4,22 @@ services:
     env_file: .env
     image: "registry.gitlab.com/trivialsec/public-api/${BUILD_ENV}:${IMAGE_TAG:-latest}"
     container_name: api
+    hostname: api.trivialsec
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TRIVIALSEC_PY_LIB_VER: ${TRIVIALSEC_PY_LIB_VER}
+        BUILD_ENV: ${BUILD_ENV}
+        GITLAB_USER: ${GITLAB_USER}
+        GITLAB_PASSWORD: ${GITLAB_PAT}
+        PYTHONUNBUFFERED: 1
+        PYTHONUTF8: 1
+        CFLAGS: -O0
+        STATICBUILD: 1
+        LC_ALL: C.UTF-8
+        LANG: C.UTF-8
+    command: python3 -u -d -X dev run.py
     environment:
       - APP_ENV=${APP_ENV:-Dev}
       - APP_NAME=${APP_NAME}
@@ -14,6 +30,7 @@ services:
       - FLASK_DEBUG=1
       - FLASK_ENV=development
       - FLASK_RUN_PORT=5081
+      - TRIVIALSEC_PY_LIB_VER=${TRIVIALSEC_PY_LIB_VER}
     ports:
       - 5081:5081
     volumes:

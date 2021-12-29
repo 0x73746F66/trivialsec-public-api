@@ -1,6 +1,6 @@
 variables:
-  DOCKER_USER: ci
-  COMMON_VERSION: 0.9.0
+  GITLAB_USER: ci
+  TRIVIALSEC_PY_LIB_VER: 0.9.0
   APP_ENV: Prod
   APP_NAME: trivialsec
   BUILD_ENV: production

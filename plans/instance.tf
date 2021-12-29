@@ -23,7 +23,7 @@ resource "linode_instance" "public_api" {
     "AWS_REGION"            = local.aws_default_region
     "AWS_ACCESS_KEY_ID"     = var.aws_access_key_id
     "AWS_SECRET_ACCESS_KEY" = var.aws_secret_access_key
-    "COMMON_VERSION"        = var.common_version
+    "TRIVIALSEC_PY_LIB_VER"        = var.trivialsec_py_lib_ver
     "GITLAB_USER"           = var.gitlab_user
     "GITLAB_PASSWORD"       = var.gitlab_password
     "BRANCH"                = local.branch

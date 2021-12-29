@@ -1,4 +1,4 @@
-FROM docker.io/library/python:3.8-slim
+FROM docker.io/library/python:3.9-slim
 LABEL org.opencontainers.image.authors="Christopher Langton"
 LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.source="https://gitlab.com/trivialsec/public-api"
@@ -9,7 +9,7 @@ ARG LC_ALL
 ARG LANG
 ARG CFLAGS
 ARG STATICBUILD
-ARG COMMON_VERSION
+ARG TRIVIALSEC_PY_LIB_VER
 ARG BUILD_ENV
 ARG GITLAB_USER
 ARG GITLAB_PASSWORD
@@ -62,7 +62,7 @@ RUN python3 -m pip install -q --no-cache-dir --no-warn-script-location -U setupt
         pipx install awscli && \
         pipx install gunicorn \
     && echo "Cloning Python Libs Package from Gitlab" \
-    && git clone -q -c advice.detachedHead=false --depth 1 --branch ${COMMON_VERSION} --single-branch https://${GITLAB_USER}:${GITLAB_PASSWORD}@gitlab.com/trivialsec/python-common.git /tmp/trivialsec/python-libs \
+    && git clone -q -c advice.detachedHead=false --depth 1 --branch ${TRIVIALSEC_PY_LIB_VER} --single-branch https://${GITLAB_USER}:${GITLAB_PASSWORD}@gitlab.com/trivialsec/python-common.git /tmp/trivialsec/python-libs \
     && cd /tmp/trivialsec/python-libs \
     && echo "Installing python-libs" \
     && make install \

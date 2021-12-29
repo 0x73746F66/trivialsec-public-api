@@ -4,7 +4,7 @@
 # <UDF name="AWS_SECRET_ACCESS_KEY" Label="AWS Secret Access Key" />
 # <UDF name="AWS_REGION" Label="AWS Region" />
 # <UDF name="FLASK_RUN_PORT" Label="expose port" />
-# <UDF name="COMMON_VERSION" Label="trivialsec pylibs version (git tag)" />
+# <UDF name="TRIVIALSEC_PY_LIB_VER" Label="trivialsec pylibs version (git tag)" />
 # <UDF name="GITLAB_USER" Label="container registry user" />
 # <UDF name="GITLAB_PASSWORD" Label="container registry password" />
 # <UDF name="BRANCH" Label="public-api branch" />
@@ -103,13 +103,13 @@ CONFIG
 }
 function install_trivialsec_pylibs() {
     echo "Cloning Python Libs Package from Gitlab"
-    git clone -q -c advice.detachedHead=false --depth 1 --branch ${COMMON_VERSION} --single-branch https://${GITLAB_USER}:${GITLAB_PASSWORD}@gitlab.com/trivialsec/python-common.git /tmp/trivialsec/python-libs
+    git clone -q -c advice.detachedHead=false --depth 1 --branch ${TRIVIALSEC_PY_LIB_VER} --single-branch https://${GITLAB_USER}:${GITLAB_PASSWORD}@gitlab.com/trivialsec/python-common.git /tmp/trivialsec/python-libs
     cd /tmp/trivialsec/python-libs
     echo "Installing python-libs"
     chown -R trivialsec:trivialsec /tmp/trivialsec/python-libs
 	su-exec trivialsec python3 setup.py check
 	su-exec trivialsec python3 setup.py sdist bdist_wheel
-	su-exec trivialsec python3 -m pip -q install --user -U dist/trivialsec_common-${COMMON_VERSION}-py2.py3-none-any.whl
+	su-exec trivialsec python3 -m pip -q install --user -U dist/trivialsec_common-${TRIVIALSEC_PY_LIB_VER}-py2.py3-none-any.whl
 }
 function install_api() {
     echo "Install API"

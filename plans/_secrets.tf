@@ -22,15 +22,15 @@ variable "allowed_linode_username" { # space delimited
   type        = string
   default     = ""
 }
-variable "common_version" {
-  description = "COMMON_VERSION"
+variable "trivialsec_py_lib_ver" {
+  description = "TRIVIALSEC_PY_LIB_VER"
   type        = string
 }
 variable "gitlab_user" {
-  description = "DOCKER_USER"
+  description = "GITLAB_USER"
   type        = string
 }
 variable "gitlab_password" {
-  description = "DOCKER_PASSWORD"
+  description = "GITLAB_PAT"
   type        = string
 }

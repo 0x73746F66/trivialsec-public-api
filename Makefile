@@ -27,10 +27,10 @@ build: ## Builds images using docker cli directly for CI
 	@docker build --compress $(BUILD_ARGS) \
 		-t $(CONAINER_NAME):$(CI_BUILD_REF) \
 		--cache-from $(CONAINER_NAME):latest \
-        --build-arg COMMON_VERSION=$(COMMON_VERSION) \
+        --build-arg TRIVIALSEC_PY_LIB_VER=$(TRIVIALSEC_PY_LIB_VER) \
         --build-arg BUILD_ENV=$(BUILD_ENV) \
-        --build-arg GITLAB_USER=$(DOCKER_USER) \
-        --build-arg GITLAB_PASSWORD=$(DOCKER_PASSWORD) \
+        --build-arg GITLAB_USER=$(GITLAB_USER) \
+        --build-arg GITLAB_PASSWORD=$(GITLAB_PAT) \
 		--build-arg PYTHONUNBUFFERED=1 \
         --build-arg PYTHONUTF8=1 \
         --build-arg CFLAGS='-O0' \
@@ -55,7 +55,6 @@ deploy: plan apply attach-firewall ## tf plan and apply -auto-approve -refresh=t
 
 plan: init ## Runs tf validate and tf plan
 	cd plans
-	terraform init -reconfigure -upgrade=true
 	terraform validate
 	terraform plan -no-color -out=.tfplan
 	terraform show --json .tfplan | jq -r '([.resource_changes[]?.change.actions?]|flatten)|{"create":(map(select(.=="create"))|length),"update":(map(select(.=="update"))|length),"delete":(map(select(.=="delete"))|length)}' > tfplan.json
@@ -81,6 +80,12 @@ attach-firewall:
 # Development Only
 #####################
 setup: ## Creates docker networks and volumes
+	@echo $(shell docker --version)
+	@echo $(shell docker-compose --version)
+	@pip --version
+	pip install -q -U pip
+	pip install -q -U setuptools wheel semgrep pylint
+	pip install -q -U -r requirements.txt
 	docker network create trivialsec 2>/dev/null || true
 
 prep: ## Cleanup tmp files
@@ -92,7 +97,8 @@ prep: ## Cleanup tmp files
 
 python-libs: prep ## download and install the trivialsec python libs locally (for IDE completions)
 	yes | pip uninstall -q trivialsec-common
-	@$(shell git clone -q -c advice.detachedHead=false --depth 1 --branch ${COMMON_VERSION} --single-branch https://${DOCKER_USER}:${DOCKER_PASSWORD}@gitlab.com/trivialsec/python-common.git python-libs)
+	git clone -q -c advice.detachedHead=false --depth 1 --branch ${TRIVIALSEC_PY_LIB_VER} --single-branch git@gitlab.com:trivialsec/python-common.git python-libs
+	@$(shell git clone -q -c advice.detachedHead=false --depth 1 --branch ${TRIVIALSEC_PY_LIB_VER} --single-branch https://${GITLAB_USER}:${GITLAB_PAT}@gitlab.com/trivialsec/python-common.git python-libs)
 	cd python-libs
 	make install
 
@@ -117,10 +123,6 @@ docker-purge: ## thorough docker environment cleanup
 	sudo rm -rf /var/lib/docker
 	sudo service docker start
 
-install-deps: python-libs ## Just the minimal local deps for IDE completions
-	pip install -q -U pip setuptools wheel semgrep pylint
-	pip install -q -U --no-cache-dir --find-links=python-libs/build/wheel --no-index --isolated -r requirements.txt
-
 test-local: ## Prettier test outputs
 	pylint --exit-zero -f colorized --persistent=y -r y --jobs=0 src/**/*.py
 	semgrep -q --strict --timeout=0 --config=p/r2c-ci --lang=py src/**/*.py
@@ -134,14 +136,15 @@ pull-base: ## pulls latest base image
 pull: ## pulls latest image
 	docker pull -q $(CONAINER_NAME):latest
 
-rebuild: down build-ci ## Brings down the stack and builds it anew
+rebuild: down ## Brings down the stack and builds it anew
+	docker-compose build --no-cache
 
 debug:
-	docker-compose run api python3 -u -d -X dev uwsgi.py
+	docker-compose run api python3 -u -d -X dev run.py
 
-docker-login: ## login to docker cli using $DOCKER_USER and $DOCKER_PASSWORD
-	@echo $(shell [ -z "${DOCKER_PASSWORD}" ] && echo "DOCKER_PASSWORD missing" )
-	@echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USER} --password-stdin registry.gitlab.com
+docker-login: ## login to docker cli using $GITLAB_USER and $GITLAB_PAT
+	@echo $(shell [ -z "${GITLAB_PAT}" ] && echo "GITLAB_PAT missing" )
+	@echo ${GITLAB_PAT} | docker login -u ${GITLAB_USER} --password-stdin registry.gitlab.com
 
 up: prep ## Start the api
 	docker-compose up -d
