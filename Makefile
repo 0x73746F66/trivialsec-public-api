@@ -130,9 +130,6 @@ test-local: ## Prettier test outputs
 
 test-all: semgrep-xss-ci semgrep-sast-ci pylint-ci ## Run all CI tests
 
-pull-base: ## pulls latest base image
-	docker pull -q registry.gitlab.com/trivialsec/containers-common/python:latest
-
 pull: ## pulls latest image
 	docker pull -q $(CONAINER_NAME):latest
 
